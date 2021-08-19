@@ -141,20 +141,30 @@ hwconfig = {
         damode=damodes.XFLASH,
         dacode=0x0992,
         name="MT0992"),
-    0x2601: chipconfig(  # var1
-        # uart
-        # brom_payload_addr
+    0x2601: chipconfig(
+        var1=0xA, # Smartwatch, confirmed
         watchdog=0x10007000,
-        da_payload_addr=0x2007000,
-        # gcpu_base
-        # sej_base
+        uart=0x11005000,
+        brom_payload_addr=0x100A00,
+        da_payload_addr=0x2008000,
+        # pl_payload_addr=0x801E0000,
+        # no gcpu_base =0x10210000,
+        # sej_base =0x1000A000,  # hacc
         # no dxcc
-        # cqdma_base
-        # ap_dma_mem
-        # blacklist
+        # no cqdma_base
+        # no ap_dma_mem
+        blacklist=[(0x11141F0C,0x0),(0x11144BC4, 0x0)],
+        blacklist_count=0x00000008,
+        send_ptr=(0x11141f4c,0xba68),
+        ctrl_buffer=0x11142BE0,
+        cmd_handler=0x0040C5AF,
+        brom_register_access=(0x40bd48,0x40befc),
+        meid_addr=0x11142C34,
+        has_socid=False,
         dacode=0x2601,
         damode=damodes.DEFAULT,  #
-        name="MT2601"),
+        name="MT2601",
+        loader="mt2601_payload.bin"),
     0x3967: chipconfig(  # var1
         # watchdog
         # uart
@@ -194,10 +204,10 @@ hwconfig = {
         # no dxcc
         # no cqdma_base
         # no ap_dma_mem
-        blacklist=[(0xF7FF9A00, 0)],
-        send_ptr=(0x700044b0, 0xfff058ec),
-        ctrl_buffer=0xFFF020DB,
-        cmd_handler=0xFFF07001,
+        blacklist=[(0xE003FC83, 0)],
+        send_ptr=(0x700044b0, 0x700058EC),
+        ctrl_buffer=0x700041A8,
+        cmd_handler=0x700061F6,
         damode=damodes.DEFAULT,
         dacode=0x6261,
         name="MT6261",
@@ -269,11 +279,11 @@ hwconfig = {
         # no dxcc
         # cqdma_base
         ap_dma_mem=0x11000000 + 0x19C,  # AP_P_DMA_I2C_1_MEM_ADDR
-        blacklist=[(0x11141F0C, 0)],
+        blacklist=[(0x11141F0C, 0),(0x11144BC4, 0)],
         blacklist_count=0x00000008,
         send_ptr=(0x11141f4c, 0xba68),
         ctrl_buffer=0x11142BE0,
-        cmd_handler=0x000002F7,
+        cmd_handler=0x40C5AF,
         brom_register_access=(0xbd48, 0xbefc),
         meid_addr=0x11142C34,
         has_socid=False,
@@ -333,7 +343,7 @@ hwconfig = {
                        # dxcc_base
                        cqdma_base=0x1020AC00,
                        ap_dma_mem=0x11000000 + 0x1A0,  # AP_P_DMA_I2C_1_RX_MEM_ADDR
-                       blacklist=[(0x102764, 0x0)],
+                       blacklist=[(0x102764, 0x0),(0x001071D4,0x0)],
                        blacklist_count=0x00000008,
                        send_ptr=(0x1027a4, 0xb60c),
                        ctrl_buffer=0x00103060,
@@ -357,7 +367,7 @@ hwconfig = {
         # dxcc_base
         # no cqdma_base
         ap_dma_mem=0x11000000 + 0x320,  # AP_DMA_I2C_0_RX_MEM_ADDR
-        blacklist=[(0x102788, 0x0)],
+        blacklist=[(0x102788, 0x0),(0x00105BE4, 0x0)],
         blacklist_count=0x00000008,
         send_ptr=(0x1027c8, 0xa5fc),
         ctrl_buffer=0x00103078,
@@ -418,7 +428,7 @@ hwconfig = {
                        # dxcc_base
                        # cqdma_base
                        ap_dma_mem=0x11000000 + 0x1A0,
-                       blacklist=[(0x00102768, 0x0)],
+                       blacklist=[(0x00102768, 0),(0x0106c88,0)],
                        blacklist_count=0x00000008,
                        send_ptr=(0x1027a8, 0xb218),
                        ctrl_buffer=0x00103050,
@@ -471,7 +481,7 @@ hwconfig = {
         blacklist_count=0x00000008,
         send_ptr=(0x1027a0, 0x9608),
         ctrl_buffer=0x0010305C,
-        cmd_handler=0x0000A17F,
+        cmd_handler=0x0000A18F,
         brom_register_access=(0x98dc, 0x9aa4),
         meid_addr=0x1030B0,
         has_socid=False,
@@ -492,7 +502,7 @@ hwconfig = {
         dxcc_base=0x10210000,
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x1a0,  # AP_DMA_I2C_1_RX_MEM_ADDR
-        blacklist=[(0x10282C, 0x0)],
+        blacklist=[(0x10282C, 0x0),(0x001076AC, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x102870, 0xdf1c),
         ctrl_buffer=0x00102A28,
@@ -568,7 +578,7 @@ hwconfig = {
         sej_base=0x1000A000,  # hacc
         cqdma_base=0x10212C00,
         ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_1_RX_MEM_ADDR
-        blacklist=[(0x10276C, 0x0)],
+        blacklist=[(0x10276C, 0x0),(0x00105704, 0x0)],
         blacklist_count=0x00000008,
         send_ptr=(0x1027b0, 0x9a6c),
         ctrl_buffer=0x00103058,
@@ -592,7 +602,7 @@ hwconfig = {
         sej_base=0x1000A000,
         cqdma_base=0x10212C00,
         ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_1_RX_MEM_ADDR
-        blacklist=[(0x102774, 0x0)],
+        blacklist=[(0x102774, 0x0), (0x00105704, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x1027b8, 0x9c2c),
         ctrl_buffer=0x00103060,
@@ -646,7 +656,7 @@ hwconfig = {
         dxcc_base=0x10210000,
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000a80 + 0x1a0,  # AP_DMA_I2C_CH0_RX_MEM_ADDR
-        blacklist=[(0x102828, 0x0)],
+        blacklist=[(0x102828, 0x0),(0x00105994, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x10286c, 0xbc8c),
         ctrl_buffer=0x00102A28,
@@ -670,7 +680,7 @@ hwconfig = {
         sej_base=0x1000A000,  # hacc
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000a80 + 0x1a0,
-        blacklist=[(0x102834, 0x0)],
+        blacklist=[(0x102834, 0x0),(0x00106CA4, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x102878, 0xd66c),
         ctrl_buffer=0x00102A90,
@@ -695,7 +705,7 @@ hwconfig = {
         dxcc_base=0x10210000,
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x1a0,  # AP_DMA_I2C2_CH0_RX_MEM_ADDR
-        blacklist=[(0x102828, 0x0)],
+        blacklist=[(0x102828, 0x0),(0x00105994, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x10286c, 0xbdc0),
         ctrl_buffer=0x00102A28,
@@ -720,11 +730,11 @@ hwconfig = {
         dxcc_base=0x10210000,
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x1A0,
-        blacklist=[(0x10282C, 0x0)],
+        blacklist=[(0x10282C, 0x0),(0x00105994, 0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x10286c, 0xc190),
         ctrl_buffer=0x00102A28,
-        cmd_handler=0x0000CEC5,
+        cmd_handler=0x0000CF15,
         brom_register_access=(0xc598, 0xc650),
         meid_addr=0x102AF8,
         has_socid=True,
@@ -745,7 +755,7 @@ hwconfig = {
         dxcc_base=0x10210000,  # dxcc_sec
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x158,  # AP_DMA_I2C_1_RX_MEM_ADDR
-        blacklist=[(0x00102834, 0x0)],
+        blacklist=[(0x00102834, 0x0),(0x00106A60, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x102878, 0xdebc),
         ctrl_buffer=0x00102A80,
@@ -780,7 +790,7 @@ hwconfig = {
                       dxcc_base=0x10210000,
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000000 + 0x158,
-                      blacklist=[(0x102838, 0x0)],
+                      blacklist=[(0x102838, 0x0),(0x00106A60, 0x0)],
                       blacklist_count=0x0000000A,
                       send_ptr=(0x102878, 0xe04c),
                       ctrl_buffer=0x00102A80,
@@ -829,11 +839,11 @@ hwconfig = {
                       dxcc_base=0x10210000,
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000000 + 0x158,
-                      blacklist=[(0x102838, 0x0)],
+                      blacklist=[(0x102838, 0x0),(0x00106A60, 0x0)],
                       blacklist_count=0x0000000A,
                       send_ptr=(0x102878, 0xe2a4),
                       ctrl_buffer=0x00102A80,
-                      cmd_handler=0x0000EFD9,
+                      cmd_handler=0x0000F029,
                       brom_register_access=(0xe6ac, 0xe764),
                       meid_addr=0x102B38,
                       has_socid=True,
@@ -854,7 +864,7 @@ hwconfig = {
         # no dxcc
         cqdma_base=0x10212c00,
         ap_dma_mem=0x11000000 + 0x1A0,
-        blacklist=[(0x102764, 0x0)],
+        blacklist=[(0x102764, 0x0),(0x00105704,0x0)],
         blacklist_count=0x00000008,
         send_ptr=(0x1027a4, 0x978c),
         ctrl_buffer=0x0010304C,
@@ -903,7 +913,7 @@ hwconfig = {
         # no dxcc
         # no dxcc
         sej_base=0x1000A000,
-        blacklist=[(0x00102870, 0x0)],
+        blacklist=[(0x00102870, 0x0),(0x00107070, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x1028b4, 0xf5ac),
         ctrl_buffer=0x001032F0,
@@ -927,7 +937,7 @@ hwconfig = {
         # sej_base=0x1000a000,  # hacc
         # cqdma_base=0x10212000, #
         # ap_dma_mem=0x11000a80 + 0x1a0,  # todo check
-        blacklist=[(0x00102844, 0x0)],
+        blacklist=[(0x00102844, 0x0),(0x00106B54, 0x0)],
         damode=damodes.XFLASH,
         blacklist_count=0x0000000A,
         send_ptr=(0x102884, 0xdfe0),
@@ -948,7 +958,7 @@ hwconfig = {
                       cqdma_base=0x10212000,
                       sej_base=0x1000a000,  # hacc
                       ap_dma_mem=0x11000000 + 0x1A0,
-                      blacklist=[(0x10284C, 0x0)],
+                      blacklist=[(0x10284C, 0x0),(0x00106B60, 0x0)],
                       blacklist_count=0x0000000A,
                       send_ptr=(0x10288c, 0xea64),
                       ctrl_buffer=0x00102AA0,
@@ -970,7 +980,7 @@ hwconfig = {
         sej_base=0x1000a000,  # hacc
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x1A0,
-        blacklist=[(0x10284C, 0x0)],
+        blacklist=[(0x10284C, 0x0),(0x00106B60, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x10288c, 0xea78),
         ctrl_buffer=0x00102AA0,
@@ -1008,12 +1018,12 @@ hwconfig = {
         sej_base=0x1000a000,  # hacc
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000a80 + 0x1a0,  # todo check
-        blacklist=[(0x102848, 0x0)],
+        blacklist=[(0x102848, 0x0),(0x00106B60, 0x0)],
         damode=damodes.XFLASH,
         blacklist_count=0x0000000A,
         send_ptr=(0x102888, 0xE6FC),
         ctrl_buffer=0x00102A9C,
-        cmd_handler=0x0000F431,
+        cmd_handler=0x0000F481,
         brom_register_access=(0x10efbc, 0xebbc),
         dacode=0x6885,
         name="MT6885/MT6889/MT6880/MT6890",
@@ -1058,7 +1068,7 @@ hwconfig = {
         sej_base=0x1000A000,
         # no cqdma_base
         ap_dma_mem=0x11000000 + 0x1A0,
-        blacklist=[(0x102870, 0x0)],
+        blacklist=[(0x102870, 0x0), (0x00106C7C, 0x0)],
         blacklist_count=0x00000008,
         send_ptr=(0x1028b0, 0xb2b8),
         ctrl_buffer=0x00103178,
@@ -1118,7 +1128,7 @@ hwconfig = {
                        # no dxcc
                        cqdma_base=0x10212C00,
                        ap_dma_mem=0x11000000 + 0x1A0,
-                       blacklist=[(0x102968, 0x0)],
+                       blacklist=[(0x102968, 0x0),(0x00107954, 0x0)],
                        blacklist_count=0x0000000A,
                        send_ptr=(0x1029ac, 0xd2e4),
                        ctrl_buffer=0x0010339C,
@@ -1154,7 +1164,7 @@ hwconfig = {
         # sej_base
         # cqdma_base
         ap_dma_mem=0x11000000 + 0x1A0,
-        blacklist=[(0x122774, 0x0)],
+        blacklist=[(0x122774, 0x0),(0x00125904, 0x0)],
         blacklist_count=0x00000008,
         send_ptr=(0x1227b4, 0xa0e4),
         ctrl_buffer=0x0012305C,
@@ -1252,7 +1262,7 @@ hwconfig = {
         # sej_base
         # cqdma_base
         ap_dma_mem=0x11000280 + 0x1A0,
-        blacklist=[(0x103048, 0x0)],
+        blacklist=[(0x103048, 0x0),(0x00106EC4, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x103088, 0xbeec),
         ctrl_buffer=0x001031EC,
