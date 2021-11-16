@@ -6,6 +6,8 @@ import os
 from struct import unpack
 from mtkclient.Library.utils import LogBase, read_object, logsetup
 from mtkclient.config.payloads import pathconfig
+from mtkclient.config.brom_config import damodes
+from mtkclient.Library.utils import structhelper
 
 class Storage:
     MTK_DA_HW_STORAGE_NOR = 0
@@ -72,27 +74,41 @@ class NandCellUsage:
     CELL_OCT = 7
 
 
-entry_region = [
-    ('m_buf', 'I'),
-    ('m_len', 'I'),
-    ('m_start_addr', 'I'),
-    ('m_start_offset', 'I'),
-    ('m_sig_len', 'I')]
+class entry_region:
+    m_buf = None
+    m_len = None
+    m_start_addr = None
+    m_start_offset = None
+    m_sig_len = None
+    def __init__(self, data):
+        sh = structhelper(data)
+        self.m_buf = sh.dword()
+        self.m_len = sh.dword()
+        self.m_start_addr = sh.dword()
+        self.m_start_offset = sh.dword()
+        self.m_sig_len = sh.dword()
 
-DA = [
-    ('magic', 'H'),
-    ('hw_code', 'H'),
-    ('hw_sub_code', 'H'),
-    ('hw_version', 'H'),
-    ('sw_version', 'H'),
-    ('reserved1', 'H'),
-    ('pagesize', 'H'),
-    ('reserved3', 'H'),
-    ('entry_region_index', 'H'),
-    ('entry_region_count', 'H')
-    # vector<entry_region> LoadRegion
-]
+class DA:
+    def __init__(self,data):
+        self.loader = None
+        sh = structhelper(data)
+        self.magic = sh.short()
+        self.hw_code = sh.short()
+        self.hw_sub_code = sh.short()
+        self.hw_version = sh.short()
+        self.sw_version = sh.short()
+        self.reserved1 = sh.short()
+        self.pagesize = sh.short()
+        self.reserved3 = sh.short()
+        self.entry_region_index = sh.short()
+        self.entry_region_count = sh.short()
+        self.region = []
+        for _ in range(self.entry_region_count):
+            entry_tmp = entry_region(sh.bytes(20))
+            self.region.append(entry_tmp)
 
+    def setfilename(self, loaderfilename: str):
+        self.loader = loaderfilename
 
 class DAconfig(metaclass=LogBase):
     def __init__(self, mtk, loader=None, preloader=None, loglevel=logging.INFO):
@@ -103,20 +119,25 @@ class DAconfig(metaclass=LogBase):
         self.usbwrite = self.mtk.port.usbwrite
         self.usbread = self.mtk.port.usbread
         self.flashsize = 0
+        self.flashtype = "emmc"
         self.sparesize = 0
         self.readsize = 0
         self.pagesize = 512
         self.da = None
+        self.da2 = None
         self.dasetup = {}
         self.loader = loader
-        self.extract_emi(preloader, self.mtk.config.chipconfig.damode)
+        self.extract_emi(preloader)
+        self.blver = None
+        self.bromver = None
 
         if loader is None:
             loaders = []
             for root, dirs, files in os.walk(self.pathconfig.get_loader_path(), topdown=False):
                 for file in files:
-                    if "Preloader" not in root:
+                    if "MTK_AllInOne_DA" in file:
                         loaders.append(os.path.join(root, file))
+            loaders = sorted(loaders)[::-1]
             for loader in loaders:
                 self.parse_da_loader(loader)
         else:
@@ -125,10 +146,40 @@ class DAconfig(metaclass=LogBase):
             else:
                 self.parse_da_loader(loader)
 
-    def extract_emi(self, preloader=None, legacy=False) -> bytearray:
+    def m_extract_emi(self, data):
+        idx = data.find(b"\x4D\x4D\x4D\x01\x38\x00\x00\x00")
+        siglen = 0
+        if idx != -1:
+            data = data[idx:]
+            mlen = unpack("<I", data[0x20:0x20 + 4])[0]
+            siglen = unpack("<I", data[0x2C:0x2C + 4])[0]
+            data = data[:mlen]
+
+        bldrstring = b"MTK_BLOADER_INFO_v"
+        len_bldrstring = len(bldrstring)
+        idx = data.find(bldrstring)
+        if idx == -1:
+            return None
+        elif idx == 0:
+            ver = int(data[idx + len_bldrstring:idx + len_bldrstring + 2].rstrip(b"\x00"))
+            return ver, data
+        ver = int(data[idx + len_bldrstring:idx + len_bldrstring + 2].rstrip(b"\x00"))
+        emi = data[idx:-siglen]
+        rlen = len(emi) - 4
+        if len(emi) > 4:
+            val = unpack("<I", emi[-4:])[0]
+            if val == rlen:
+                emi = emi[:rlen]
+                if not self.config.chipconfig.damode == damodes.XFLASH:
+                    if emi.find(b"MTK_BIN") != -1:
+                        emi = emi[emi.find(b"MTK_BIN") + 0xC:]
+                return ver, emi
+        return None
+
+    def extract_emi(self, preloader=None) -> bytearray:
         if preloader is None:
             self.emi = None
-            return
+            return b""
         if isinstance(preloader, bytearray) or isinstance(preloader, bytes):
             data = bytearray(preloader)
         elif isinstance(preloader, str):
@@ -136,34 +187,12 @@ class DAconfig(metaclass=LogBase):
                 with open(preloader, "rb") as rf:
                     data = rf.read()
             else:
-                assert "Preloader :"+preloader+" doesn't exist. Aborting."
+                assert "Preloader :" + preloader + " doesn't exist. Aborting."
                 exit(1)
-        if legacy:
-            idx = data.rfind(b"MTK_BIN")
-            if idx == -1:
-                self.emi = None
-                return
-            dramdata = data[idx:][0xC:][:-0x128]
-            self.emi = dramdata
-            return
-        else:
-            idx = data.rfind(b"MTK_BLOADER_INFO_v")
-            if idx != -1:
-                emi = data[idx:]
-                count = unpack("<I", emi[0x6C:0x70])[0]
-                size = (count * 0xB0) + 0x70
-                emi = emi[:size]
-                self.emi = emi
-                return
-        self.emi = None
-        return
+        self.emiver, self.emi = self.m_extract_emi(data)
 
     def parse_da_loader(self, loader):
-        if not "MTK_AllInOne_DA" in loader:
-            return True
         try:
-            if loader not in self.dasetup:
-                self.dasetup[loader] = []
             with open(loader, 'rb') as bootldr:
                 # data = bootldr.read()
                 # self.debug(hexlify(data).decode('utf-8'))
@@ -171,15 +200,20 @@ class DAconfig(metaclass=LogBase):
                 count_da = unpack("<I", bootldr.read(4))[0]
                 for i in range(0, count_da):
                     bootldr.seek(0x6C + (i * 0xDC))
-                    datmp = read_object(bootldr.read(0x14), DA)  # hdr
-                    datmp["loader"] = loader
-                    da = [datmp]
-                    # bootldr.seek(0x6C + (i * 0xDC) + 0x14) #sections
-                    count = datmp["entry_region_count"]
-                    for m in range(0, count):
-                        entry_tmp = read_object(bootldr.read(20), entry_region)
-                        da.append(entry_tmp)
-                    self.dasetup[loader].append(da)
+                    da = DA(bootldr.read(0xDC))
+                    da.setfilename(loader)
+                    if da.hw_code not in self.dasetup:
+                        self.dasetup[da.hw_code] = [da]
+                    else:
+                        for ldr in self.dasetup[da.hw_code]:
+                            found = False
+                            if da.hw_version == ldr.hw_version:
+                                if da.sw_version == ldr.sw_version:
+                                    if da.hw_sub_code == da.hw_sub_code:
+                                        found = True
+                                        break
+                        if not found:
+                            self.dasetup[da.hw_code].append(da)
                 return True
         except Exception as e:
             self.error("Couldn't open loader: " + loader + ". Reason: " + str(e))
@@ -187,14 +221,14 @@ class DAconfig(metaclass=LogBase):
 
     def setup(self):
         dacode = self.config.chipconfig.dacode
-        for loader in self.dasetup:
-            for setup in self.dasetup[loader]:
-                if setup[0]["hw_code"] == dacode:
-                    if setup[0]["hw_version"] <= self.config.hwver:
-                        if setup[0]["sw_version"] <= self.config.swver:
-                            if self.loader is None:
-                                self.da = setup
-                                self.loader = loader
+        if dacode in self.dasetup:
+            loaders = self.dasetup[dacode]
+            for loader in loaders:
+                if loader.hw_version <= self.config.hwver:
+                    if loader.sw_version <= self.config.swver:
+                        if self.loader is None:
+                            self.da = loader
+                            self.loader = loader.loader
 
         if self.da is None:
             self.error("No da config set up")

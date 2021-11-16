@@ -23,6 +23,8 @@ class crypto_setup:
     cqdma_base = None
     ap_dma_mem = None
     meid_addr = None
+    socid_addr = None
+    prov_addr = None
 
 class hwcrypto(metaclass=LogBase):
     def __init__(self, setup, loglevel=logging.INFO):
@@ -37,6 +39,8 @@ class hwcrypto(metaclass=LogBase):
         self.read32 = setup.read32
         self.write32 = setup.write32
         self.meid_addr = setup.meid_addr
+        self.socid_addr = setup.socid_addr
+        self.prov_addr = setup.prov_addr
 
     def aes_hwcrypt(self, data=b"", iv=None, encrypt=True, otp=None, mode="cbc", btype="sej"):
         if otp is None:
@@ -62,11 +66,13 @@ class hwcrypto(metaclass=LogBase):
                     return self.gcpu.aes_read_cbc(addr=addr, encrypt=encrypt)
         elif btype == "dxcc":
             if mode == "fde":
-                return self.dxcc.generate_fde()
+                return self.dxcc.generate_rpmb(1)
+            elif mode == "rpmb2":
+                return self.dxcc.generate_rpmb(2)
             elif mode == "rpmb":
                 return self.dxcc.generate_rpmb()
-            elif mode == "itrustee-fde":
-                return self.dxcc.generate_itrustee_fde()
+            elif mode == "itrustee":
+                return self.dxcc.generate_itrustee_fbe()
             elif mode == "prov":
                 return self.dxcc.generate_provision_key()
             elif mode == "sha256":
@@ -93,11 +99,11 @@ class hwcrypto(metaclass=LogBase):
             self.gcpu.init()
             self.gcpu.acquire()
             self.info("Disable Caches")
-            refreshcache(0xB1)
+            refreshcache(b"\xB1")
             self.info("GCPU Disable Range Blacklist")
             self.gcpu.disable_range_blacklist()
         elif btype == "cqdma":
             self.info("Disable Caches")
-            refreshcache(0xB1)
+            refreshcache(b"\xB1")
             self.info("CQDMA Disable Range Blacklist")
             self.cqdma.disable_range_blacklist()

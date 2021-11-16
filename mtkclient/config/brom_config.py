@@ -12,9 +12,9 @@ class chipconfig:
     def __init__(self, var1=None, watchdog=None, uart=None, brom_payload_addr=None,
                  da_payload_addr=None, pl_payload_addr=None, cqdma_base=None, sej_base=None, dxcc_base=None,
                  gcpu_base=None, ap_dma_mem=None, name="", description="", dacode=None,
-                 meid_addr=None, has_socid=False, blacklist=(), blacklist_count=None,
+                 meid_addr=None, socid_addr=None, blacklist=(), blacklist_count=None,
                  send_ptr=None, ctrl_buffer=(), cmd_handler=None, brom_register_access=None,
-                 damode=damodes.DEFAULT, loader=None):
+                 damode=damodes.DEFAULT, loader=None, prov_addr=None):
         self.var1 = var1
         self.watchdog = watchdog
         self.uart = uart
@@ -35,7 +35,8 @@ class chipconfig:
         self.cmd_handler = cmd_handler,
         self.brom_register_access = brom_register_access,
         self.meid_addr = meid_addr
-        self.has_socid = has_socid
+        self.socid_addr = socid_addr
+        self.prov_addr = prov_addr
         self.gcpu_base = gcpu_base
         self.dacode = dacode
         self.damode = damode
@@ -53,17 +54,17 @@ class chipconfig:
                        blacklist=[(0x0, 0x0),(0x00105704, 0x0)],
                        dacode=0x0,
                        name=""),
-                       
+
                        Needed fields
-                       
+
                        For hashimoto:
                        cqdma_base,
                        ap_dma_mem,
                        blacklist
-                       
+
                        For kamakiri:
                        var1
-                       
+
                        For amonet:
                        gpu_base
                        blacklist
@@ -142,25 +143,24 @@ hwconfig = {
         dacode=0x0992,
         name="MT0992"),
     0x2601: chipconfig(
-        var1=0xA, # Smartwatch, confirmed
+        var1=0xA,  # Smartwatch, confirmed
         watchdog=0x10007000,
         uart=0x11005000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x2008000,
-        # pl_payload_addr=0x801E0000,
+        pl_payload_addr=0x81E00000,  #
         # no gcpu_base =0x10210000,
-        # sej_base =0x1000A000,  # hacc
+        sej_base=0x1000A000,  # hacc
         # no dxcc
         # no cqdma_base
         # no ap_dma_mem
-        blacklist=[(0x11141F0C,0x0),(0x11144BC4, 0x0)],
+        blacklist=[(0x11141F0C, 0x0), (0x11144BC4, 0x0)],
         blacklist_count=0x00000008,
-        send_ptr=(0x11141f4c,0xba68),
+        send_ptr=(0x11141f4c, 0xba68),
         ctrl_buffer=0x11142BE0,
         cmd_handler=0x0040C5AF,
-        brom_register_access=(0x40bd48,0x40befc),
+        brom_register_access=(0x40bd48, 0x40befc),
         meid_addr=0x11142C34,
-        has_socid=False,
         dacode=0x2601,
         damode=damodes.DEFAULT,  #
         name="MT2601",
@@ -168,8 +168,9 @@ hwconfig = {
     0x3967: chipconfig(  # var1
         # watchdog
         # uart
-        # brom_payload_addr
+        brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40020000,
         # gcpu_base
         # sej_base
         # no dxcc
@@ -245,6 +246,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,  # todo: check
         da_payload_addr=0x201000,
+        pl_payload_addr=0x80001000,  #
         gcpu_base=0x1020D000,
         sej_base=0x1000A000,
         # no dxcc
@@ -256,8 +258,8 @@ hwconfig = {
     0x6571: chipconfig(  # var1
         watchdog=0x10007400,
         # uart
-        da_payload_addr=0x2008000,
-        pl_payload_addr=0x801E0000,
+        da_payload_addr=0x2009000,
+        pl_payload_addr=0x80001000,
         # gcpu_base
         # sej_base
         # no dxcc
@@ -273,31 +275,31 @@ hwconfig = {
         uart=0x11005000,
         brom_payload_addr=0x10036A0,
         da_payload_addr=0x2008000,
-        pl_payload_addr=0x801E0000,
+        pl_payload_addr=0x81E00000,  #
         # gcpu_base
         # sej_base
         # no dxcc
         # cqdma_base
         ap_dma_mem=0x11000000 + 0x19C,  # AP_P_DMA_I2C_1_MEM_ADDR
-        blacklist=[(0x11141F0C, 0),(0x11144BC4, 0)],
+        blacklist=[(0x11141F0C, 0), (0x11144BC4, 0)],
         blacklist_count=0x00000008,
-        send_ptr=(0x11141f4c, 0xba68),
+        send_ptr=(0x11141f4c, 0x40ba68), ####
         ctrl_buffer=0x11142BE0,
         cmd_handler=0x40C5AF,
-        brom_register_access=(0xbd48, 0xbefc),
+        brom_register_access=(0x40bd48, 0x40befc),
         meid_addr=0x11142C34,
-        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x6572,
         name="MT6572",
         loader="mt6572_payload.bin"),
     0x6573: chipconfig(  # var1
-        watchdog=0x220,
+        watchdog=0x70025000,
         # uart
-        da_payload_addr=0x90005000,
+        da_payload_addr=0x90006000,
+        pl_payload_addr=0xf1020000,
         # gcpu_base
-        # sej_base
-        # dxcc_base
+        sej_base=0x7002A000,
+        # no dxcc
         # cqdma_base
         # ap_dma_mem
         # blacklist
@@ -305,27 +307,27 @@ hwconfig = {
         dacode=0x6573,
         name="MT6573/MT6260"),
     0x6575: chipconfig(  # var1
-        watchdog=0xC0000000,
+        watchdog=0xC0000000,  #
         # uart
-        da_payload_addr=0xc2000000,
+        da_payload_addr=0xc2001000,
+        pl_payload_addr=0xc2058000,
         # gcpu_base
-        # sej_base
-        # dxcc_base
-        # cqdma_base
-        # ap_dma_mem
-        # blacklist
-        ap_dma_mem=0xC100119C,
         sej_base=0xC101A000,
+        # no dxcc
+        # cqdma_base
+        ap_dma_mem=0xC100119C,
+        # blacklist
         damode=damodes.DEFAULT,  #
         dacode=0x6575,
         name="MT6575/77"),
     0x6577: chipconfig(  # var1
         watchdog=0xC0000000,  # fixme
         uart=0xC1009000,
-        da_payload_addr=0xc2000000,
+        da_payload_addr=0xc2001000,
+        pl_payload_addr=0xc2058000,
         # gcpu_base
         sej_base=0xC101A000,
-        # dxcc_base
+        # no dxcc
         # cqdma_base
         ap_dma_mem=0xC100119C,
         # blacklist
@@ -337,20 +339,19 @@ hwconfig = {
                        uart=0x11005000,
                        brom_payload_addr=0x100A00,
                        da_payload_addr=0x201000,
-                       pl_payload_addr=0x80001000,
+                       pl_payload_addr=0x80001000,  #
                        # no gcpu_base
                        sej_base=0x1000A000,
                        # dxcc_base
                        cqdma_base=0x1020AC00,
                        ap_dma_mem=0x11000000 + 0x1A0,  # AP_P_DMA_I2C_1_RX_MEM_ADDR
-                       blacklist=[(0x102764, 0x0),(0x001071D4,0x0)],
+                       blacklist=[(0x102764, 0x0), (0x001071D4, 0x0)],
                        blacklist_count=0x00000008,
                        send_ptr=(0x1027a4, 0xb60c),
                        ctrl_buffer=0x00103060,
                        cmd_handler=0x0000C113,
                        brom_register_access=(0xb8e0, 0xba94),
                        meid_addr=0x1030B4,
-                       has_socid=False,
                        damode=damodes.DEFAULT,
                        dacode=0x6580,
                        name="MT6580",
@@ -361,20 +362,19 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x80001000,
+        pl_payload_addr=0x80001000,  #
         gcpu_base=0x1101B000,
         sej_base=0x1000A000,
-        # dxcc_base
+        # no dxcc
         # no cqdma_base
         ap_dma_mem=0x11000000 + 0x320,  # AP_DMA_I2C_0_RX_MEM_ADDR
-        blacklist=[(0x102788, 0x0),(0x00105BE4, 0x0)],
+        blacklist=[(0x102788, 0x0), (0x00105BE4, 0x0)],
         blacklist_count=0x00000008,
         send_ptr=(0x1027c8, 0xa5fc),
         ctrl_buffer=0x00103078,
         cmd_handler=0x0000B2E7,
         brom_register_access=(0xa8d0, 0xaa84),
         meid_addr=0x1030CC,
-        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x6582,
         name="MT6582/MT6574",
@@ -383,8 +383,8 @@ hwconfig = {
         watchdog=0x10000000,  # fixme
         uart=0x11006000,
         brom_payload_addr=0x100A00,
-        da_payload_addr=0x201000,
-        pl_payload_addr=0x80001000,
+        da_payload_addr=0x12001000,
+        pl_payload_addr=0x80001000,  #
         gcpu_base=0x10210000,
         sej_base=0x1000A000,
         # no dxcc
@@ -399,7 +399,7 @@ hwconfig = {
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
-        da_payload_addr=0x110000,
+        da_payload_addr=0x111000,
         pl_payload_addr=0x80001000,
         gcpu_base=0x10210000,
         sej_base=0x1000A000,
@@ -413,7 +413,6 @@ hwconfig = {
         cmd_handler=0x0000B09F,
         brom_register_access=(0xa838, 0xa9ec),
         meid_addr=0x1030A8,
-        has_socid=False,
         dacode=0x6592,
         damode=damodes.DEFAULT,  #
         name="MT6592",
@@ -422,20 +421,19 @@ hwconfig = {
                        watchdog=0x10007000,
                        uart=0x11002000,
                        brom_payload_addr=0x100A00,
-                       da_payload_addr=0x110000,
+                       da_payload_addr=0x111000,
                        # gcpu_base
                        sej_base=0x1000A000,
                        # dxcc_base
                        # cqdma_base
                        ap_dma_mem=0x11000000 + 0x1A0,
-                       blacklist=[(0x00102768, 0),(0x0106c88,0)],
+                       blacklist=[(0x00102768, 0), (0x0106c88, 0)],
                        blacklist_count=0x00000008,
                        send_ptr=(0x1027a8, 0xb218),
                        ctrl_buffer=0x00103050,
                        cmd_handler=0x0000BD53,
                        brom_register_access=(0xb4ec, 0xb6a0),
                        meid_addr=0x1030A4,
-                       has_socid=False,
                        dacode=0x6595,
                        damode=damodes.DEFAULT,  #
                        name="MT6595",
@@ -447,7 +445,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10216000,
         sej_base=0x10008000,  # hacc
         # no dxcc
@@ -460,7 +458,6 @@ hwconfig = {
         cmd_handler=0x0000A17F,
         brom_register_access=(0x98cc, 0x9a94),
         meid_addr=0x1030B0,
-        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x6735,
         name="MT6735/T",
@@ -471,7 +468,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10216000,
         sej_base=0x10008000,
         # no dxcc
@@ -484,7 +481,6 @@ hwconfig = {
         cmd_handler=0x0000A18F,
         brom_register_access=(0x98dc, 0x9aa4),
         meid_addr=0x1030B0,
-        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x6735,
         name="MT6737M",
@@ -496,20 +492,21 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10050000,
         sej_base=0x1000A000,  # hacc
         dxcc_base=0x10210000,
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x1a0,  # AP_DMA_I2C_1_RX_MEM_ADDR
-        blacklist=[(0x10282C, 0x0),(0x001076AC, 0x0)],
+        blacklist=[(0x10282C, 0x0), (0x001076AC, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x102870, 0xdf1c),
         ctrl_buffer=0x00102A28,
         cmd_handler=0x0000EC49,
         brom_register_access=(0xe330, 0xe3e8),
         meid_addr=0x102AF8,
-        has_socid=True,
+        socid_addr=0x102b08,
+        prov_addr=0x10720C,
         damode=damodes.XFLASH,
         dacode=0x6739,
         name="MT6739/MT6731",
@@ -520,6 +517,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10210000,
         sej_base=0x1000A000,  # hacc
         cqdma_base=0x10212C00,
@@ -532,8 +530,8 @@ hwconfig = {
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
-        da_payload_addr=0x110000,
-        pl_payload_addr=0x40001000,
+        da_payload_addr=0x201000,  #
+        pl_payload_addr=0x40001000,  #
         gcpu_base=0x10210000,
         sej_base=0x1000A000,  # hacc
         # no dxcc
@@ -549,7 +547,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10216000,
         sej_base=0x10008000,
         # no dxcc
@@ -562,7 +560,6 @@ hwconfig = {
         cmd_handler=0x0000A1EF,
         brom_register_access=(0x993c, 0x9b04),
         meid_addr=0x1030B0,
-        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x6735,
         name="MT6753",
@@ -573,19 +570,19 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10210000,
         sej_base=0x1000A000,  # hacc
+        # no dxcc
         cqdma_base=0x10212C00,
         ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_1_RX_MEM_ADDR
-        blacklist=[(0x10276C, 0x0),(0x00105704, 0x0)],
+        blacklist=[(0x10276C, 0x0), (0x00105704, 0x0)],
         blacklist_count=0x00000008,
         send_ptr=(0x1027b0, 0x9a6c),
         ctrl_buffer=0x00103058,
         cmd_handler=0x0000A5FF,
         brom_register_access=(0x9d4c, 0x9f14),
         meid_addr=0x1030AC,
-        has_socid=False,
         damode=damodes.XFLASH,
         dacode=0x6755,
         name="MT6755/MT6750/M/T/S",
@@ -597,9 +594,10 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10210000,
         sej_base=0x1000A000,
+        # no dxcc
         cqdma_base=0x10212C00,
         ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_1_RX_MEM_ADDR
         blacklist=[(0x102774, 0x0), (0x00105704, 0x0)],
@@ -609,61 +607,83 @@ hwconfig = {
         cmd_handler=0x0000A8FB,
         brom_register_access=(0xa030, 0xa0e8),
         meid_addr=0x1030B4,
-        has_socid=False,
         damode=damodes.XFLASH,
         dacode=0x6757,
         name="MT6757/MT6757D",
         description="Helio P20",
         loader="mt6757_payload.bin"),
-    0x688: chipconfig(  # var1
-        watchdog=0x10210000,
+    0x688: chipconfig(
+        var1=0xA,
+        watchdog=0x10211000, #
         uart=0x11020000,
-        brom_payload_addr=0x100A00,  # todo
-        da_payload_addr=0x201000,
-        gcpu_base=0x10050000,
+        brom_payload_addr=0x100A00, #
+        da_payload_addr=0x201000, #
+        pl_payload_addr=0x40200000,  #
+        gcpu_base=0x10050000, #
         sej_base=0x10080000,  # hacc
-        # no dxcc
-        cqdma_base=0x10200000,
-        ap_dma_mem=0x11000000 + 0x1A0,
-        # blacklist
+        dxcc_base=0x11240000, #
+        cqdma_base=0x10200000, #
+        ap_dma_mem=0x11000000 + 0x1A0, #
+        blacklist=[(0x102830,0),(0x106A60,0)],
+        blacklist_count=0xA,
+        send_ptr=(0x102874,0xd860),
+        ctrl_buffer=0x102B28,
+        cmd_handler=0xE58D, 
+        brom_register_access=(0xdc74,0xdd2c),
+        meid_addr=0x102bf8,
+        socid_addr=0x102c08,
         damode=damodes.XFLASH,
         dacode=0x6758,
-        name="MT6758"
+        name="MT6758",
+        description="Helio P30",
+        loader="mt6758_payload.bin"
     ),
     0x507: chipconfig(  # var1
         watchdog=0x10210000,
         uart=0x11020000,
         brom_payload_addr=0x100A00,  # todo
         da_payload_addr=0x201000,
+        # pl_payload_addr
         gcpu_base=0x10210000,
         # sej_base
+        # dxcc_base
         # cqdma_base
         ap_dma_mem=0x1030000 + 0x1A0,  # todo
         # blacklist
+        # blacklist_count
+        # send_ptr
+        # ctrl_buffer
+        # cmd_handler
+        # brom_Register_access
+        # meid_addr
         damode=damodes.DEFAULT,
-        dacode=0x6759,  # todo
+        dacode=0x6758,
         name="MT6759",
-        description="Helio P30"),
+        description="Helio P30"
+        # loader
+    ),
+
     0x717: chipconfig(
         var1=0x25,
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10050000,
         sej_base=0x1000A000,  # hacc
         dxcc_base=0x10210000,
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000a80 + 0x1a0,  # AP_DMA_I2C_CH0_RX_MEM_ADDR
-        blacklist=[(0x102828, 0x0),(0x00105994, 0x0)],
+        blacklist=[(0x102828, 0x0), (0x00105994, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x10286c, 0xbc8c),
         ctrl_buffer=0x00102A28,
         cmd_handler=0x0000C9B9,
         brom_register_access=(0xc0a0, 0xc158),
         meid_addr=0x102AF8,
-        has_socid=True,
+        socid_addr=0x102b08,
+        prov_addr=0x1054F4,
         damode=damodes.XFLASH,
         dacode=0x6761,
         name="MT6761/MT6762/MT3369/MT8766B",
@@ -675,19 +695,21 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10050000,
         dxcc_base=0x10210000,
         sej_base=0x1000A000,  # hacc
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000a80 + 0x1a0,
-        blacklist=[(0x102834, 0x0),(0x00106CA4, 0x0)],
+        blacklist=[(0x102834, 0x0), (0x00106CA4, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x102878, 0xd66c),
         ctrl_buffer=0x00102A90,
         cmd_handler=0x0000E383,
         brom_register_access=(0xda80, 0xdb38),
         meid_addr=0x102B78,
-        has_socid=True,
+        socid_addr=0x102b88,
+        prov_addr=0x106804,
         damode=damodes.XFLASH,
         dacode=0x6763,
         name="MT6763",
@@ -699,49 +721,51 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10050000,  # not confirmed
         sej_base=0x1000a000,  # hacc
         dxcc_base=0x10210000,
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x1a0,  # AP_DMA_I2C2_CH0_RX_MEM_ADDR
-        blacklist=[(0x102828, 0x0),(0x00105994, 0x0)],
+        blacklist=[(0x102828, 0x0), (0x00105994, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x10286c, 0xbdc0),
         ctrl_buffer=0x00102A28,
         cmd_handler=0x0000CAED,
         brom_register_access=(0xc1d4, 0xc28c),
         meid_addr=0x102AF8,
-        has_socid=True,
+        socid_addr=0x102b08,
+        prov_addr=0x1054F4,
         damode=damodes.XFLASH,
         dacode=0x6765,
         name="MT6765",
         description="Helio P35/G35",
         loader="mt6765_payload.bin"),
     0x707: chipconfig(
-        var1=0x25,  # todo
+        var1=0x25,
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10050000,
         sej_base=0x1000A000,  # hacc
         dxcc_base=0x10210000,
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x1A0,
-        blacklist=[(0x10282C, 0x0),(0x00105994, 0)],
+        blacklist=[(0x10282C, 0x0), (0x00105994, 0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x10286c, 0xc190),
         ctrl_buffer=0x00102A28,
         cmd_handler=0x0000CF15,
         brom_register_access=(0xc598, 0xc650),
         meid_addr=0x102AF8,
-        has_socid=True,
+        socid_addr=0x102b08,
+        prov_addr=0x1054F4,
         damode=damodes.XFLASH,
         dacode=0x6768,
         name="MT6768",
-        description="Helio P65/G85",
+        description="Helio P65/G85 k68v1",
         loader="mt6768_payload.bin"),
     0x788: chipconfig(
         var1=0xA,
@@ -749,20 +773,21 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10050000,
         sej_base=0x1000A000,  # hacc
-        dxcc_base=0x10210000,  # dxcc_sec
+        #dxcc_base=0x10210000,  # dxcc_sec
         cqdma_base=0x10212000,
         ap_dma_mem=0x11000000 + 0x158,  # AP_DMA_I2C_1_RX_MEM_ADDR
-        blacklist=[(0x00102834, 0x0),(0x00106A60, 0x0)],
+        blacklist=[(0x00102834, 0x0), (0x00106A60, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x102878, 0xdebc),
         ctrl_buffer=0x00102A80,
         cmd_handler=0x0000EBE9,
         brom_register_access=(0xe2d0, 0xe388),
         meid_addr=0x102B38,
-        has_socid=True,
+        socid_addr=0x102B48,
+        prov_addr=0x1065C0,
         damode=damodes.XFLASH,
         dacode=0x6771,
         name="MT6771/MT8385/MT8183/MT8666",
@@ -784,69 +809,72 @@ hwconfig = {
                       uart=0x11002000,
                       brom_payload_addr=0x100A00,
                       da_payload_addr=0x201000,
-                      pl_payload_addr=0x40200000,
+                      pl_payload_addr=0x40200000,  #
                       gcpu_base=0x10050000,
                       sej_base=0x1000a000,  # hacc
                       dxcc_base=0x10210000,
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000000 + 0x158,
-                      blacklist=[(0x102838, 0x0),(0x00106A60, 0x0)],
+                      blacklist=[(0x102838, 0x0), (0x00106A60, 0x0)],
                       blacklist_count=0x0000000A,
                       send_ptr=(0x102878, 0xe04c),
                       ctrl_buffer=0x00102A80,
                       cmd_handler=0x0000ED6D,
                       brom_register_access=(0xe454, 0xe50c),
                       meid_addr=0x102B38,
-                      has_socid=True,
+                      socid_addr=0x102B48,
+                      prov_addr=0x1065C0,
                       damode=damodes.XFLASH,
                       dacode=0x6779,
                       name="MT6779",
-                      description="Helio P90",
+                      description="Helio P90 k79v1",
                       loader="mt6779_payload.bin"),
-    0x1066: chipconfig(  # var1=0xA, #confirmed
-        # watchdog=0x10007000,
-        # uart=0x11002000,
-        # brom_payload_addr=0x100A00,
-        # da_payload_addr=0x201000,
-        # pl_payload_addr=0x40200000,
-        # gcpu_base=0x10050000,
-        # sej_base=0x1000A000,  # hacc
-        # dxcc_base=0x10210000,
+    0x1066: chipconfig(
+        var1=0x73, #confirmed
+        watchdog=0x10007000,
+        uart=0x11002000,
+        brom_payload_addr=0x100A00,
+        da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,
+        gcpu_base=0x10050000,
+        sej_base=0x1000A000,  # hacc
+        dxcc_base=0x10210000,
         # cqdma_base=0x10212000,
         # ap_dma_mem=0x11000000 + 0x158,
-        # blacklist=[(0x102838, 0x0)],
-        # blacklist_count=0x0000000A,
-        # send_ptr=(0x102878,0xe2a4),
-        # ctrl_buffer=0x00102A80,
-        # cmd_handler=0x0000EFD9,
-        # brom_register_access=(0xe6ac,0xe764),
-        # meid_addr=0x102B38,
-        has_socid=True,
+        blacklist=[(0x10284C, 0x106B54)],
+        blacklist_count=0x0000000A,
+        send_ptr=(0x102890,0xe5d8),
+        ctrl_buffer=0x00102AB4,
+        cmd_handler=0x0000F3C1,
+        brom_register_access=(0xe9dc,0xea94),
+        meid_addr=0x102B98,
+        socid_addr=0x102BA8,
         damode=damodes.XFLASH,
         dacode=0x6781,
         name="MT6781",
-        description="Helio A22",
-        # loader="mt6781_payload.bin"
+        description="Helio G96",
+        loader="mt6781_payload.bin"
     ),
     0x813: chipconfig(var1=0xA,  # confirmed
                       watchdog=0x10007000,
                       uart=0x11002000,
                       brom_payload_addr=0x100A00,
                       da_payload_addr=0x201000,
-                      pl_payload_addr=0x40200000,
+                      pl_payload_addr=0x40200000,  #
                       gcpu_base=0x10050000,
                       sej_base=0x1000A000,  # hacc
                       dxcc_base=0x10210000,
                       cqdma_base=0x10212000,
                       ap_dma_mem=0x11000000 + 0x158,
-                      blacklist=[(0x102838, 0x0),(0x00106A60, 0x0)],
+                      blacklist=[(0x102838, 0x0), (0x00106A60, 0x0)],
                       blacklist_count=0x0000000A,
                       send_ptr=(0x102878, 0xe2a4),
                       ctrl_buffer=0x00102A80,
                       cmd_handler=0x0000F029,
                       brom_register_access=(0xe6ac, 0xe764),
                       meid_addr=0x102B38,
-                      has_socid=True,
+                      socid_addr=0x102B48,
+                      prov_addr=0x1065C0,
                       damode=damodes.XFLASH,
                       dacode=0x6785,
                       name="MT6785",
@@ -858,20 +886,19 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x110000,
-        pl_payload_addr=0x40200000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10210000,
         sej_base=0x1000A000,  # hacc
         # no dxcc
         cqdma_base=0x10212c00,
         ap_dma_mem=0x11000000 + 0x1A0,
-        blacklist=[(0x102764, 0x0),(0x00105704,0x0)],
+        blacklist=[(0x102764, 0x0), (0x00105704, 0x0)],
         blacklist_count=0x00000008,
         send_ptr=(0x1027a4, 0x978c),
         ctrl_buffer=0x0010304C,
-        cmd_handler=0x0000A313,
+        cmd_handler=0x0000A313, #
         brom_register_access=(0x9a60, 0x9c28),
         meid_addr=0x1030A0,
-        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x6795,
         name="MT6795",
@@ -883,6 +910,7 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,  #
         gcpu_base=0x10210000,
         # no dxcc
         sej_base=0x1000A000,  # hacc
@@ -895,7 +923,6 @@ hwconfig = {
         cmd_handler=0x0000AA3F,
         brom_register_access=(0xa18c, 0xa354),
         meid_addr=0x1030AC,
-        has_socid=False,
         damode=damodes.XFLASH,
         dacode=0x6797,
         name="MT6797/MT6767",
@@ -907,20 +934,20 @@ hwconfig = {
         uart=0x11020000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,  # not confirmed
         gcpu_base=0x10210000,
         cqdma_base=0x11B30000,
         ap_dma_mem=0x11000000 + 0x1A0,  # AP_DMA_I2C_2_RX_MEM_ADDR
-        # no dxcc
-        # no dxcc
+        dxcc_base=0x11B20000,
         sej_base=0x1000A000,
-        blacklist=[(0x00102870, 0x0),(0x00107070, 0x0)],
+        blacklist=[(0x00102870, 0x0), (0x00107070, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x1028b4, 0xf5ac),
         ctrl_buffer=0x001032F0,
         cmd_handler=0x000102C3,
         brom_register_access=(0xf9c0, 0xfa78),
         meid_addr=0x1033B8,
-        has_socid=True,
+        socid_addr=0x1033C8,
         damode=damodes.XFLASH,
         dacode=0x6799,
         name="MT6799",
@@ -932,38 +959,46 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,  #
         da_payload_addr=0x201000,  #
-        # gcpu_base=0x10050000, #
-        # dxcc_base=0x10210000, #
-        # sej_base=0x1000a000,  # hacc
-        # cqdma_base=0x10212000, #
-        # ap_dma_mem=0x11000a80 + 0x1a0,  # todo check
-        blacklist=[(0x00102844, 0x0),(0x00106B54, 0x0)],
-        damode=damodes.XFLASH,
+        pl_payload_addr=0x40200000,  #
+        gcpu_base=0x10050000,
+        dxcc_base=0x10210000,
+        sej_base=0x1000a000,  # hacc
+        cqdma_base=0x10212000,
+        ap_dma_mem=0x10217a80 + 0x1a0,
+        blacklist=[(0x00102844, 0x0), (0x00106B54, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x102884, 0xdfe0),
         ctrl_buffer=0x00102AA4,
         cmd_handler=0x0000EDAD,
-        brom_register_access=(0x10e7f8, 0xe4a0),
+        brom_register_access=(0xe3e8, 0xe4a0),
+        meid_addr=0x102b98,
+        socid_addr=0x102ba8,
+        prov_addr=0x1066B4,
+        damode=damodes.XFLASH,
         dacode=0x6833,
         name="MT6833",
-        description="Dimensity 700 5G",
+        description="Dimensity 700 5G k6833",
         loader="mt6833_payload.bin"),
     0x996: chipconfig(var1=0xA,
                       watchdog=0x10007000,
                       uart=0x11002000,
                       brom_payload_addr=0x100A00,
                       da_payload_addr=0x201000,
+                      pl_payload_addr=0x40200000,  #
                       gcpu_base=0x10050000,
                       dxcc_base=0x10210000,
                       cqdma_base=0x10212000,
                       sej_base=0x1000a000,  # hacc
-                      ap_dma_mem=0x11000000 + 0x1A0,
-                      blacklist=[(0x10284C, 0x0),(0x00106B60, 0x0)],
+                      ap_dma_mem=0x10217a80 + 0x1A0,
+                      blacklist=[(0x10284C, 0x0), (0x00106B60, 0x0)],
                       blacklist_count=0x0000000A,
                       send_ptr=(0x10288c, 0xea64),
                       ctrl_buffer=0x00102AA0,
                       cmd_handler=0x0000F831,
-                      brom_register_access=(0x10efec, 0xef24),
+                      brom_register_access=(0xee6c, 0xef24),
+                      meid_addr=0x102b78,
+                      socid_addr=0x102b88,
+                      prov_addr=0x1066C0,
                       damode=damodes.XFLASH,
                       dacode=0x6853,
                       name="MT6853",
@@ -975,74 +1010,105 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,
         gcpu_base=0x10050000,
         dxcc_base=0x10210000,
         sej_base=0x1000a000,  # hacc
         cqdma_base=0x10212000,
-        ap_dma_mem=0x11000000 + 0x1A0,
-        blacklist=[(0x10284C, 0x0),(0x00106B60, 0x0)],
+        ap_dma_mem=0x10217a80 + 0x1A0,
+        blacklist=[(0x10284C, 0x0), (0x00106B60, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x10288c, 0xea78),
         ctrl_buffer=0x00102AA0,
-        cmd_handler=0x0000F7AD,
-        brom_register_access=(0x10efc0, 0xef38),
+        cmd_handler=0x0000F7FD,
+        brom_register_access=(0xee80, 0xef38),
         meid_addr=0x102B78,
-        has_socid=True,
+        socid_addr=0x102B88,
+        prov_addr=0x1066C0,
         damode=damodes.XFLASH,
         dacode=0x6873,
-        name="MT6873/MT6883",
+        name="MT6873",
         description="Dimensity 800/820 5G",
         loader="mt6873_payload.bin"),
-    0x959: chipconfig(  # var1
-        # watchdog
-        # uart
-        # brom_payload_addr
-        # da_payload_addr
-        # gcpu_base
-        # sej_base
-        # cqdma_base
-        # ap_dma_mem
-        # blacklist
+    0x959: chipconfig(
+        var1=0xA,
+        watchdog=0x10007000,
+        uart=0x11002000,
+        brom_payload_addr=0x100A00,
+        da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,
+        gcpu_base=0x10050000,
+        sej_base=0x1000a000,  # hacc
+        dxcc_base=0x10210000,
+        cqdma_base=0x10212000,
+        ap_dma_mem=0x10217a80 + 0x1A0,
+        blacklist=[(0x102848, 0x0), (0x00106B60, 0x0)],
+        blacklist_count=0xA,
+        send_ptr=(0x102888,0xe8d0),
+        ctrl_buffer=0x00102A9C,
+        cmd_handler=0x0000F69D,
+        brom_register_access=(0xecd8,0xed90),
+        meid_addr=0x102b98,
+        socid_addr=0x102ba8,
+        prov_addr=0x1066C0,
         damode=damodes.XFLASH,
         dacode=0x6877,  # todo
+        name="MT6877",
         description="Dimensity 900",
-        name="MT6877"),
+        loader="mt6877_payload.bin"
+    ),
     0x816: chipconfig(
         var1=0xA,  # confirmed
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,
         gcpu_base=0x10050000,
         dxcc_base=0x10210000,
         sej_base=0x1000a000,  # hacc
         cqdma_base=0x10212000,
-        ap_dma_mem=0x11000a80 + 0x1a0,  # todo check
-        blacklist=[(0x102848, 0x0),(0x00106B60, 0x0)],
-        damode=damodes.XFLASH,
+        ap_dma_mem=0x11000a80 + 0x1a0,
+        blacklist=[(0x102848, 0x0), (0x00106B60, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x102888, 0xE6FC),
         ctrl_buffer=0x00102A9C,
         cmd_handler=0x0000F481,
-        brom_register_access=(0x10efbc, 0xebbc),
+        brom_register_access=(0xeb04, 0xebbc),
+        meid_addr=0x102B78,
+        socid_addr=0x102B88,
+        prov_addr=0x1066C0,
+        damode=damodes.XFLASH,
         dacode=0x6885,
-        name="MT6885/MT6889/MT6880/MT6890",
+        name="MT6885/MT6883/MT6889/MT6880/MT6890",
         description="Dimensity 1000L/1000",
         loader="mt6885_payload.bin"),
-    0x950: chipconfig(  # var1
-        # watchdog
-        # uart
-        # brom_payload_addr
-        da_payload_addr=0x201000,  # todo
-        # gcpu_base
-        # sej_base
-        # cqdma_base
-        # ap_dma_mem
-        # blacklist
+    0x950: chipconfig(
+        var1=0xA,  # confirmed
+        watchdog=0x10007000,
+        uart=0x11002000,
+        brom_payload_addr=0x100A00,
+        da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,
+        gcpu_base=0x10050000,
+        dxcc_base=0x10210000,
+        sej_base=0x1000a000,  # hacc
+        cqdma_base=0x10212000,
+        ap_dma_mem=0x11000a80 + 0x1a0,
+        blacklist=[(0x102848, 0x0), (0x00106B60, 0x0)],
+        blacklist_count=0x0000000A,
+        send_ptr=(0x102888, 0xE79C),
+        ctrl_buffer=0x00102A9C,
+        cmd_handler=0x0000F569,
+        brom_register_access=(0xeba4, 0xec5c),
+        meid_addr=0x102B98,
+        socid_addr=0x102BA8,
+        prov_addr=0x1066C0,
         damode=damodes.XFLASH,
         dacode=0x6893,
+        name="MT6893",
         description="Dimensity 1200",
-        name="MT6893"),
+        loader="mt6893_payload.bin"),
     # Dimensity 1100 - MT6891 Realme Q3 Pro
     0x8110: chipconfig(  # var1
         # watchdog
@@ -1075,7 +1141,6 @@ hwconfig = {
         cmd_handler=0x0000BDF3,
         brom_register_access=(0xb58c, 0xb740),
         meid_addr=0x1031CC,
-        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x8127,
         name="MT8127/MT3367",
@@ -1085,21 +1150,32 @@ hwconfig = {
         # uart
         # brom_payload_addr
         da_payload_addr=0x12001000,
+        # pl_payload_addr
         # gcpu_base
         # sej_base
         # cqdma_base
         # ap_dma_mem
         # blacklist
+        # blacklist_count
+        # send_ptr
+        # ctrl_buffer
+        # cmd_handler
+        # brom_register_access
+        # meid_addr
+        # socid_addr
         damode=damodes.DEFAULT,  #
         dacode=0x8135,
-        name="MT8135"),
+        name="MT8135"
+        # description
+        # loader
+    ),
     0x8163: chipconfig(
         var1=0xB1,
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40001000,
+        pl_payload_addr=0x40001000,  #
         gcpu_base=0x10210000,
         sej_base=0x1000A000,
         # no dxcc
@@ -1112,7 +1188,6 @@ hwconfig = {
         cmd_handler=0x0000CCB3,
         brom_register_access=(0xc400, 0xc5c8),
         meid_addr=0x1031C0,
-        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x8163,
         name="MT8163",
@@ -1122,99 +1197,147 @@ hwconfig = {
                        uart=0x11005000,
                        brom_payload_addr=0x100A00,
                        da_payload_addr=0x201000,
-                       pl_payload_addr=0x40001000,
+                       pl_payload_addr=0x40001000,  #
                        gcpu_base=0x1020D000,
                        sej_base=0x1000A000,
                        # no dxcc
                        cqdma_base=0x10212C00,
                        ap_dma_mem=0x11000000 + 0x1A0,
-                       blacklist=[(0x102968, 0x0),(0x00107954, 0x0)],
+                       blacklist=[(0x102968, 0x0), (0x00107954, 0x0)],
                        blacklist_count=0x0000000A,
                        send_ptr=(0x1029ac, 0xd2e4),
                        ctrl_buffer=0x0010339C,
                        cmd_handler=0x0000DFF7,
-                       brom_register_access=(0x10fef2, 0xd7ac),
+                       brom_register_access=(0xd6f2, 0xd7ac),
                        meid_addr=0x103478,
-                       has_socid=True,
+                       socid_addr=0x103488,
                        damode=damodes.XFLASH,
                        dacode=0x8167,
                        name="MT8167/MT8516/MT8362",
+                       # description
                        loader="mt8167_payload.bin"),
     0x8168: chipconfig(  # var1
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
-        da_payload_addr=0x201000,  # todo
+        da_payload_addr=0x201000,
+        # pl_payload_addr=0x40001000
         # gcpu_base
-        # sej_base
+        # sej_base=0x1000A000,
         # cqdma_base
-        ap_dma_mem=0x11000000 + 0x1A0,
+        ap_dma_mem=0x11000280 + 0x1A0,
         # blacklist
+        # blacklist_count
+        # send_ptr
+        # ctrl_buffer
+        # cmd_handler
+        # brom_register_access
+        # meid_addr
+        # socid_addr
         damode=damodes.XFLASH,
         dacode=0x8168,
-        name="MT8168"),
+        name="MT8168"
+        # description
+        # loader
+    ),
     0x8172: chipconfig(
         var1=0xA,
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x120A00,
-        da_payload_addr=0xc0000,
-        pl_payload_addr=0x40200000,
+        da_payload_addr=0xC0000,
+        pl_payload_addr=0x40001000,  #
         # gcpu_base
-        # sej_base
-        # cqdma_base
+        sej_base=0x1000a000,
+        # no dxcc
+        cqdma_base=0x10212c00,
         ap_dma_mem=0x11000000 + 0x1A0,
-        blacklist=[(0x122774, 0x0),(0x00125904, 0x0)],
+        blacklist=[(0x122774, 0x0), (0x00125904, 0x0)],
         blacklist_count=0x00000008,
         send_ptr=(0x1227b4, 0xa0e4),
         ctrl_buffer=0x0012305C,
         cmd_handler=0x0000AC6B,
         brom_register_access=(0xa3b8, 0xa580),
         meid_addr=0x1230B0,
-        has_socid=False,
         damode=damodes.DEFAULT,  #
         dacode=0x8173,
         name="MT8173",
+        # description
         loader="mt8173_payload.bin"),  # sloane, suez
-    0x8176: chipconfig(  # var1
+    0x8176: chipconfig(
+        # var1
         watchdog=0x10212c00,
-        # uart
-        # brom_payload_addr
-        # da_payload_addr
+        uart=0x11002000,
+        brom_payload_addr=0x120A00,
+        da_payload_addr=0xC0000,
+        pl_payload_addr=0x40200000,
         # gcpu_base
-        # sej_base
-        # cqdma_base
-        # ap_dma_mem
+        sej_base=0x1000A000,
+        # no dxcc
+        cqdma_base=0x10212c00,
+        ap_dma_mem=0x11000000 + 0x1A0,
         # blacklist
+        # blacklist_count
+        # send_ptr
+        # ctrl_buffer
+        # cmd_handler
+        # brom_register_access
+        # meid_addr
+        # socid_addr
         dacode=0x8173,
-        damode=damodes.DEFAULT,  #
-        name="MT8176"),
-    0x930: chipconfig(  # var1
+        damode=damodes.DEFAULT,
+        # description
+        name="MT8176"
+        # loader
+    ),
+    0x930: chipconfig(
+        # var1
         # watchdog
         # uart
-        # brom_payload_addr
+        brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
+        pl_payload_addr=0x40200000,
         # gcpu_base
         # sej_base
         # cqdma_base
         # ap_dma_mem
         # blacklist
+        # blacklist_count
+        # send_ptr
+        # ctrl_buffer
+        # cmd_handler
+        # brom_register_access
+        # meid_addr
+        # socid_addr
         dacode=0x8195,
         damode=damodes.XFLASH,
-        name="MT8195"),
+        # description
+        name="MT8195"
+        # loader
+    ),
     0x8512: chipconfig(  # var1
         # watchdog
         # uart
         # brom_payload_addr
-        da_payload_addr=0x110000,
+        da_payload_addr=0x111000,
         # gcpu_base
         # sej_base
         # cqdma_base
         # ap_dma_mem
         # blacklist
+        # blacklist_count
+        # send_ptr
+        # ctrl_buffer
+        # cmd_handler
+        # brom_register_access
+        # meid_addr
+        # socid_addr
         dacode=0x8512,
         damode=damodes.XFLASH,
-        name="MT8512"),
+        # description
+        name="MT8512"
+        # loader
+    ),
     0x8518: chipconfig(  # var1
         # watchdog
         # uart
@@ -1225,11 +1348,18 @@ hwconfig = {
         # cqdma_base
         # ap_dma_mem
         # blacklist
+        # blacklist_count
+        # send_ptr
+        # ctrl_buffer
+        # cmd_handler
+        # brom_register_access
+        # meid_addr
+        # socid_addr
         dacode=0x8518,
         damode=damodes.XFLASH,
         name="MT8518"),
     0x8590: chipconfig(
-        var1=0xA,  # confirmed
+        var1=0xA,  # confirmed, router
         watchdog=0x10007000,
         uart=0x11002000,
         brom_payload_addr=0x100A00,
@@ -1246,10 +1376,10 @@ hwconfig = {
         cmd_handler=0x0000C71F,
         brom_register_access=(0xbeb8, 0xc06c),
         meid_addr=0x1031D8,
-        has_socid=False,
         dacode=0x8590,
         damode=damodes.DEFAULT,
         name="MT8590/MT7683/MT8521/MT7623",
+        # description=
         loader="mt8590_payload.bin"),
     0x8695: chipconfig(
         var1=0xA,  # confirmed
@@ -1257,24 +1387,25 @@ hwconfig = {
         uart=0x11002000,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
-        pl_payload_addr=0x40001000,
+        pl_payload_addr=0x40001000,  #
         # gcpu_base
-        # sej_base
+        sej_base=0x1000A000,
         # cqdma_base
         ap_dma_mem=0x11000280 + 0x1A0,
-        blacklist=[(0x103048, 0x0),(0x00106EC4, 0x0)],
+        blacklist=[(0x103048, 0x0), (0x00106EC4, 0x0)],
         blacklist_count=0x0000000A,
         send_ptr=(0x103088, 0xbeec),
         ctrl_buffer=0x001031EC,
         cmd_handler=0x0000CAA7,
         brom_register_access=(0xc298, 0xc3f8),
         meid_addr=0x1032B8,
-        has_socid=False,
         damode=damodes.XFLASH,
         dacode=0x8695,
-        name="MT8695",
+        name="MT8695",  # mantis
+        # description
         loader="mt8695_payload.bin"),
-    0x908: chipconfig(  # var1
+    0x908: chipconfig(
+        # var1
         watchdog=0x10007000,
         # uart
         brom_payload_addr=0x100A00,
@@ -1284,14 +1415,38 @@ hwconfig = {
         # cqdma_base
         # ap_dma_mem
         # blacklist
+        # blacklist_count
+        # send_ptr
+        # ctrl_buffer
+        # cmd_handler
+        # brom_register_access
+        # meid_addr
+        # socid_addr
         damode=damodes.XFLASH,
         dacode=0x8696,
-        name="MT8696"),
+        # description
+        name="MT8696"
+        # loader
+    ),
 }
 
 
 class Mtk_Config(metaclass=LogBase):
     def __init__(self, loglevel=logging.INFO):
+        self.pid = -1
+        self.vid = -1
+        self.var1 = 0xA
+        self.is_brom = False
+        self.skipwdt = False
+        self.interface = -1
+        self.readsocid = False
+        self.enforcecrash = False
+        self.debugmode = False
+        self.preloader = None
+        self.payloadfile = None
+        self.loader = None
+        self.ptype = "kamakiri2"
+        self.generatekeys = None
         self.bmtflag = None
         self.bmtblockcount = None
         self.bmtpartsize = None
@@ -1337,7 +1492,7 @@ class Mtk_Config(metaclass=LogBase):
         if self.chipconfig.gcpu_base is None:
             self.chipconfig.gcpu_base = None
         if self.chipconfig.sej_base is None:
-            self.chipconfig.sej_base = 0x10008000
+            self.chipconfig.sej_base = None
         if self.chipconfig.dacode is None:
             self.chipconfig.dacode = hwcode
         if self.chipconfig.ap_dma_mem is None:
@@ -1345,11 +1500,13 @@ class Mtk_Config(metaclass=LogBase):
         if self.chipconfig.damode is None:
             self.chipconfig.damode = damodes.DEFAULT
         if self.chipconfig.dxcc_base is None:
-            self.chipconfig.dxcc_base = 0x10210000
+            self.chipconfig.dxcc_base = None
         if self.chipconfig.meid_addr is None:
             self.chipconfig.meid_addr = None
-        if self.chipconfig.has_socid is None:
-            self.chipconfig.has_socid = False
+        if self.chipconfig.socid_addr is None:
+            self.chipconfig.socid_addr = None
+        if self.chipconfig.prov_addr is None:
+            self.chipconfig.prov_addr = None
 
     def init_hwcode(self, hwcode):
         self.hwcode = hwcode

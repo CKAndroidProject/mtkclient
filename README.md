@@ -1,6 +1,7 @@
 # mtkclient
-Just some mtk tool for exploitation, reading/writing flash and doing crazy stuff. For linux, a patched kernel is only needed for kamakiri (see Setup folder) (except for read/write flash).
+Just some mtk tool for exploitation, reading/writing flash and doing crazy stuff. 
 For windows, you need to install the stock mtk port and the usbdk driver (see instructions below).
+For linux, a patched kernel is only needed when using old kamakiri (see Setup folder) (except for read/write flash).
 
 Once the mtk script is running, boot into brom mode by powering off device, press and hold either
 vol up + power or vol down + power and connect the phone. Once detected by the tool,
@@ -113,6 +114,84 @@ sudo reboot
 
 ## Usage
 
+### Root the phone (Tested with android 9 - 12)
+
+1. Dump boot and vbmeta
+```
+python mtk r boot,vbmeta boot.img,vbmeta.img
+```
+
+2. Reboot the phone
+```
+python mtk reset
+```
+
+3. Download patched magisk for mtk:
+Download (here)[https://raw.githubusercontent.com/vvb2060/magisk_files/44ca9ed38c29e22fa276698f6c03bc1168df2c10/app-release.apk]
+
+4. Install on target phone
+- you need to enable usb-debugging via Settings/About phone/Version, Tap 7x on build number
+- Go to Settings/Additional settings/Developer options, enable "OEM unlock" and "USB Debugging"
+- Install magisk apk
+```
+adb install app-release.apk
+```
+- accept auth rsa request on mobile screen of course to allow adb connection
+
+5. Upload boot to /sdcard/Download
+```
+adb push boot.img /sdcard/Download
+```
+
+6. Start magisk, tap on Install, select boot.img from /sdcard/Download, then:
+```
+adb pull /sdcard/Download/[displayed magisk patched boot filename here]
+mv [displayed magisk patched boot filename here] boot.patched
+```
+
+7. Do the steps needed in section "Unlock bootloader below"
+
+8. Flash magisk-patched boot and empty vbmeta
+```
+python mtk w boot,vbmeta boot.patched,vbmeta.img.empty
+```
+
+9. Reboot the phone
+```
+python mtk reset
+```
+
+10. Disconnect usb cable and enjoy your rooted phone :)
+
+
+### Unlock bootloader
+
+1. Erase metadata and userdata (and md_udc if existing):
+```
+python mtk e metadata,userdata,md_udc
+```
+
+2. Unlock bootloader:
+```
+python mtk xflash seccfg unlock
+```
+for relocking use:
+```
+python mtk xflash seccfg lock
+```
+
+3. Reboot the phone:
+```
+python mtk reset
+```
+
+and disconnect usb cable to let the phone reboot.
+
+If you are getting a dm-verity error on Android 11, just press the power button,
+then the device should boot and show a yellow warning about unlocked bootloader and
+then the device should boot within 5 seconds.
+
+
 ### Read flash
 
 Dump boot partition to filename boot.bin via preloader
@@ -128,10 +207,22 @@ python mtk r boot boot.bin [--preloader=Loader/Preloader/your_device_preloader.b
 ```
 
 
+Dump preloader partition to filename preloader.bin via bootrom
+
+```
+python mtk r preloader preloader.bin --parttype=boot1 [--preloader=Loader/Preloader/your_device_preloader.bin]
+```
+
 Read full flash to filename flash.bin (use --preloader for brom)
 
 ```
 python mtk rf flash.bin
+```
+
+Read flash offset 0x128000 with length 0x200000 to filename flash.bin (use --preloader for brom)
+
+```
+python mtk ro 0x128000 0x200000 flash.bin
 ```
 
 Dump all partitions to directory "out". (use --preloader for brom)
@@ -168,11 +259,54 @@ Write all files in directory "out" to the flash partitions
 python mtk wl out
 ```
 
+write file flash.bin to flash offset 0x128000 with length 0x200000 (use --preloader for brom)
+
+```
+python mtk wo 0x128000 0x200000 flash.bin
+```
+
 ### Erase flash
 
-Erase boot partition (use --preloader for brom)
+Erase boot partition
 ```
 python mtk e boot
+```
+
+Erase boot sectors
+```
+python mtk es boot [sector count]
+```
+
+### XFlash commands (only available via XFlash da, not legacy da for now):
+
+Peek memory
+```
+python mtk xflash peek [addr in hex] [length in hex] [optional: -filename filename.bin for reading to file]
+```
+
+Poke memory
+```
+python mtk xflash peek [addr in hex] [data as hexstring or -filename for reading from file]
+```
+
+Read rpmb
+```
+python mtk xflash rpmb r [will read to rpmb.bin]
+```
+
+Write rpmb [Dangerous and may not work as it's not tested !]
+```
+python mtk xflash rpmb w filename
+```
+
+Generate and display rpmb1-3 key
+```
+python mtk xflash generatekeys
+```
+
+Unlock / Lock bootloader
+```
+python mtk xflash seccfg [lock or unlock]
 ```
 
 ---------------------------------------------------------------------------------------------------------------
@@ -290,27 +424,7 @@ python stage2 keys --mode [sej, dxcc]
 `` 
 For dxcc, you need to use plstage instead of stage
 
----------------------------------------------------------------------------------------------------------------
-
-
-## Compile payloads (optional)
-
-### Install gcc armeabi compiler
-
-```
-sudo apt-get install gcc-arm-none-eabi
-```
-
-### Compile
-
-See src/readme.build for detailed instructions.
-
-```
-cd src
-make
-```
----------------------------------------------------------------------------------------------------------------
-
+---------------------------------------------------------------------
 
 ### I have issues ....... please send logs and full console details !
 

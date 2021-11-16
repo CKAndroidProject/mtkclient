@@ -2,13 +2,26 @@
 # -*- coding: utf-8 -*-
 # (c) B.Kerler 2018-2021 MIT License
 import os
+import shutil
 import logging
 from enum import Enum
 from struct import unpack, pack
 from binascii import hexlify
 from mtkclient.Library.utils import LogBase, logsetup
 from mtkclient.Library.error import ErrorHandler
-from mtkclient.Library.utils import getint
+
+def calc_xflash_checksum(data):
+    checksum = 0
+    pos = 0
+    for i in range(0, len(data) // 4):
+        checksum += unpack("<I", data[i * 4:(i * 4) + 4])[0]
+        pos += 4
+    if len(data) % 4 != 0:
+        for i in range(4 - (len(data) % 4)):
+            checksum += data[pos]
+            pos += 1
+    return checksum & 0xFFFFFFFF
+
 
 class Preloader(metaclass=LogBase):
     class Rsp(Enum):
@@ -96,6 +109,9 @@ class Preloader(metaclass=LogBase):
     def __init__(self, mtk, loglevel=logging.INFO):
         self.mtk = mtk
         self.__logger = logsetup(self, self.__logger, loglevel)
+        self.info = self.__logger.info
+        self.debug = self.__logger.debug
+        self.error = self.__logger.error
         self.eh = ErrorHandler()
         self.gcpu = None
         self.config = mtk.config
@@ -108,21 +124,26 @@ class Preloader(metaclass=LogBase):
         self.echo = self.mtk.port.echo
         self.sendcmd = self.mtk.port.mtk_cmd
 
-    def init(self, args, readsocid=False, maxtries=None, display=True):
+    def init(self, maxtries=None, display=True):
+        if os.path.exists(".state"):
+            os.remove(".state")
+        readsocid=self.config.readsocid
+        skipwdt = self.config.skipwdt
+
         if not display:
             self.info("Status: Waiting for PreLoader VCOM, please reconnect mobile to brom mode")
         else:
             self.info("Status: Waiting for PreLoader VCOM, please connect mobile")
         res = False
         tries = 0
-        while not res and tries<10:
-            res=self.mtk.port.handshake(maxtries=maxtries)
+        while not res and tries < 10:
+            res = self.mtk.port.handshake(maxtries=maxtries)
             if not res:
                 if display:
-                    self.error("Status: Handshake failed, please retry")
+                    self.error("Status: Handshake failed, retrying...")
                 self.mtk.port.close()
-                tries+=1
-        if tries==10:
+                tries += 1
+        if tries == 10:
             return False
 
         if not self.echo(self.Cmd.GET_HW_CODE.value):  # 0xFD
@@ -130,33 +151,10 @@ class Preloader(metaclass=LogBase):
                 self.error("Sync error. Please power off the device and retry.")
             return False
         else:
-            self.config.hwcode = self.rword()
-            self.config.hwver = self.rword()
+            val = self.rdword()
+            self.config.hwcode = (val >> 16) & 0xFFFF
+            self.config.hwver = val & 0xFFFF
             self.config.init_hwcode(self.config.hwcode)
-        da_address = args["--da_addr"]
-        if da_address is not None:
-            self.info("O:DA offset:\t\t\t" + da_address)
-            self.config.chipconfig.da_payload_addr = getint(da_address)
-
-        brom_address = args["--brom_addr"]
-        if brom_address is not None:
-            self.info("O:Payload offset:\t\t" + brom_address)
-            self.config.chipconfig.brom_payload_addr = getint(brom_address)
-
-        watchdog_address = args["--wdt"]
-        if watchdog_address is not None:
-            self.info("O:Watchdog addr:\t\t" + watchdog_address)
-            self.config.chipconfig.watchdog = getint(watchdog_address)
-
-        uart_address = args["--uartaddr"]
-        if uart_address is not None:
-            self.info("O:Uart addr:\t\t" + uart_address)
-            self.config.chipconfig.uart = getint(uart_address)
-
-        var1 = args["--var1"]
-        if var1 is not None:
-            self.info("O:Var1:\t\t" + var1)
-            self.config.chipconfig.var1 = getint(var1)
 
         cpu = self.config.chipconfig.name
         if self.display:
@@ -171,6 +169,18 @@ class Preloader(metaclass=LogBase):
                 self.info("\tCQ_DMA addr:\t\t" + hex(self.config.chipconfig.cqdma_base))
             self.info("\tVar1:\t\t\t" + hex(self.config.chipconfig.var1))
 
+        if not skipwdt:
+            if self.display:
+                self.info("Disabling Watchdog...")
+            self.setreg_disablewatchdogtimer(self.config.hwcode)  # D4
+        if self.display:
+            self.info("HW code:\t\t\t" + hex(self.config.hwcode))
+            with open(os.path.join("logs", "hwcode.txt"), "w") as wf:
+                wf.write(hex(self.config.hwcode))
+        self.config.target_config = self.get_target_config(self.display)
+        self.info("Get Target info")
+        self.get_blver()
+        self.get_bromver()
         res = self.get_hw_sw_ver()
         self.config.hwsubcode = 0
         self.config.hwver = 0
@@ -183,33 +193,21 @@ class Preloader(metaclass=LogBase):
             self.info("\tHW subcode:\t\t" + hex(self.config.hwsubcode))
             self.info("\tHW Ver:\t\t\t" + hex(self.config.hwver))
             self.info("\tSW Ver:\t\t\t" + hex(self.config.swver))
-
-        if not args["--skipwdt"]:
-            if self.display:
-                self.info("Disabling Watchdog...")
-            self.setreg_disablewatchdogtimer(self.config.hwcode)  # D4
-        if self.display:
-            self.info("HW code:\t\t\t" + hex(self.config.hwcode))
-            with open(os.path.join("logs", "hwcode"), "w") as wf:
-                wf.write(hex(self.config.hwcode))
-        self.config.target_config = self.get_target_config(self.display)
-        blver=self.get_blver()
         meid = self.get_meid()
         if len(meid) >= 16:
-            with open(os.path.join("logs", "meid"), "wb") as wf:
+            with open(os.path.join("logs", "meid.txt"), "wb") as wf:
                 wf.write(hexlify(meid))
-        if self.display:
-            if meid != b"":
-                self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
-        if readsocid or self.config.chipconfig.has_socid:
-            socid = self.get_socid()
-            if len(socid) >= 16:
-                with open(os.path.join("logs", "socid"), "wb") as wf:
-                    wf.write(hexlify(socid))
+        if meid != b"":
             if self.display:
-                if socid != b"":
-                    self.info("SOC_ID:\t\t\t" + hexlify(socid).decode('utf-8').upper())
-
+                self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
+            if readsocid or self.config.chipconfig.socid_addr:
+                socid = self.get_socid()
+                if len(socid) >= 16:
+                    with open(os.path.join("logs", "socid.txt"), "wb") as wf:
+                        wf.write(hexlify(socid))
+                if self.display:
+                    if socid != b"":
+                        self.info("SOC_ID:\t\t\t" + hexlify(socid).decode('utf-8').upper())
         return True
 
     def read32(self, addr, dwords=1) -> list:
@@ -259,59 +257,44 @@ class Preloader(metaclass=LogBase):
                 value += b"\x00"
             self.write32(addr + i, unpack("<I", value))
 
-    def run_ext_cmd(self, cmd=b"\xB1"):
+    def run_ext_cmd(self, cmd: bytes = b"\xB1"):
         self.usbwrite(self.Cmd.CMD_C8.value)
         assert self.usbread(1) == self.Cmd.CMD_C8.value
-        cmd = bytes([cmd])
         self.usbwrite(cmd)
         assert self.usbread(1) == cmd
         self.usbread(1)
         self.usbread(2)
 
     def jump_to_partition(self, partitionname):
-        if isinstance(partitionname,str):
-            partitionname=bytes(partitionname,'utf-8')[:64]
-        partitionname=partitionname+(64-len(partitionname))*b'\x00'
+        if isinstance(partitionname, str):
+            partitionname = bytes(partitionname, 'utf-8')[:64]
+        partitionname = partitionname + (64 - len(partitionname)) * b'\x00'
         if self.echo(self.Cmd.JUMP_TO_PARTITION.value):
             self.usbwrite(partitionname)
             status2 = self.rword()
             if status2 <= 0xFF:
                 return True
 
-    def calc_xflash_checksum(self, data):
-        checksum=0
-        pos=0
-        for i in range(0,len(data)//4):
-            checksum+=unpack("<I", data[i * 4:(i * 4) + 4])[0]
-            pos+=4
-        if len(data)%4!=0:
-            for i in range(4-(len(data)%4)):
-                checksum+=data[pos]
-                pos+=1
-        return checksum&0xFFFFFFFF
-
     def send_partition_data(self, partitionname, data):
-        checksum = self.calc_xflash_checksum(data)
-        if isinstance(partitionname,str):
-            partitionname=bytes(partitionname,'utf-8')[:64]
-        partitionname=partitionname+(64-len(partitionname))*b'\x00'
+        checksum = calc_xflash_checksum(data)
+        if isinstance(partitionname, str):
+            partitionname = bytes(partitionname, 'utf-8')[:64]
+        partitionname = partitionname + (64 - len(partitionname)) * b'\x00'
         if self.echo(self.Cmd.SEND_PARTITION_DATA.value):
             self.usbwrite(partitionname)
-            self.usbwrite(pack(">I",len(data)))
+            self.usbwrite(pack(">I", len(data)))
             status = self.rword()
             if status <= 0xFF:
                 length = len(data)
-                pos=0
+                pos = 0
                 while length > 0:
                     dsize = min(length, 0x200)
                     if not self.usbwrite(data[pos:pos + dsize]):
                         break
                     pos += dsize
                     length -= dsize
-                #self.usbwrite(data)
-                self.usbwrite(pack(">I",checksum))
-
-
+                # self.usbwrite(data)
+                self.usbwrite(pack(">I", checksum))
 
     def setreg_disablewatchdogtimer(self, hwcode):
         """
@@ -334,17 +317,21 @@ class Preloader(metaclass=LogBase):
             return True
         return False
 
+    def get_bromver(self):
+        if self.usbwrite(self.Cmd.GET_VERSION.value):
+            res = self.usbread(1)
+            self.mtk.config.bromver = unpack("B", res)[0]
+            return self.mtk.config.bromver
+        return -1
+
     def get_blver(self):
         if self.usbwrite(self.Cmd.GET_BL_VER.value):
             res = self.usbread(1)
             if res == self.Cmd.GET_BL_VER.value:
                 # We are in boot rom ...
                 self.info("BROM mode detected.")
-                self.mtk.config.blver = -2
-                return -2
-            else:
-                self.mtk.config.blver=unpack("B", res)[0]
-                return self.mtk.config.blver
+            self.mtk.config.blver = unpack("B", res)[0]
+            return self.mtk.config.blver
         return -1
 
     def get_target_config(self, display=True):
@@ -397,6 +384,7 @@ class Preloader(metaclass=LogBase):
                     self.error(f"Jump_DA Resp2 {str(e)} ," + hexlify(data).decode('utf-8'))
                     return False
                 if status == 0:
+                    self.info(f"Jumping to {hex(addr)}: ok.")
                     return True
                 else:
                     self.error(f"Jump_DA status error:{self.eh.status(status)}")
@@ -435,7 +423,7 @@ class Preloader(metaclass=LogBase):
 
     def uart1_set_baud(self, baudrate):
         if self.echo(self.Cmd.UART1_SET_BAUDRATE.value):
-            self.usbwrite(pack(">I",baudrate))
+            self.usbwrite(pack(">I", baudrate))
             status = self.rword()
             if status == 0:
                 return True
@@ -446,7 +434,7 @@ class Preloader(metaclass=LogBase):
     def send_root_cert(self, cert):
         gen_chksum, data = self.prepare_data(b"", cert)
         if self.echo(self.Cmd.SEND_CERT.value):
-            if self.echo(pack(">I",len(data))):
+            if self.echo(pack(">I", len(data))):
                 status = self.rword()
                 if 0x0 <= status <= 0xFF:
                     if not self.upload_data(cert, gen_chksum):
@@ -486,9 +474,9 @@ class Preloader(metaclass=LogBase):
 
     def brom_register_access(self, address, length, data=None, check_status=True):
         if data is None:
-            mode=0
+            mode = 0
         else:
-            mode=1
+            mode = 1
         self.mtk.port.echo(self.Cmd.brom_register_access.value)
         self.mtk.port.echo(pack(">I", mode))
         self.mtk.port.echo(pack(">I", address))
@@ -499,11 +487,11 @@ class Preloader(metaclass=LogBase):
         except:
             pass
 
-        if status!=0:
-            raise RuntimeError(f"status is {hex(status)}")
+        if status != 0:
+            raise RuntimeError(self.eh.status(status))
 
-        if mode==0:
-            data=self.mtk.port.usbread(length)
+        if mode == 0:
+            data = self.mtk.port.usbread(length)
         else:
             self.mtk.port.usbwrite(data[:length])
 
@@ -513,8 +501,8 @@ class Preloader(metaclass=LogBase):
                 status = unpack("<H", status)[0]
             except:
                 pass
-            if status!=0:
-                raise RuntimeError(f"status is {hex(status)}")
+            if status != 0:
+                raise RuntimeError(self.eh.status(status))
         return data
 
     def get_plcap(self):
@@ -523,7 +511,7 @@ class Preloader(metaclass=LogBase):
         return self.mtk.config.plcap
 
     def get_hw_sw_ver(self):
-        res = self.sendcmd(self.Cmd.GET_HW_SW_VER.value, 8)  # 0xFC
+        res = self.sendcmd(self.Cmd.GET_HW_SW_VER.value, 8) # 0xFC
         return unpack(">HHHH", res)
 
     def get_meid(self):
@@ -536,6 +524,7 @@ class Preloader(metaclass=LogBase):
                     self.mtk.config.meid = self.usbread(length)
                     status = unpack("<H", self.usbread(2))[0]
                     if status == 0:
+                        self.config.is_brom=True
                         return self.mtk.config.meid
                     else:
                         self.error("Error on get_meid: " + self.eh.status(status))
@@ -561,28 +550,29 @@ class Preloader(metaclass=LogBase):
         data = (data[:maxsize] + sigdata)
         if len(data + sigdata) % 2 != 0:
             data += b"\x00"
-        for i in range(0, len(data), 2):
-            gen_chksum ^= unpack("<H", data[i:i + 2])[0]
+        for x in range(0, len(data), 2):
+            gen_chksum ^= unpack("<H", data[x:x + 2])[0] #3CDC
+        if len(data)&1!=0:
+            gen_chksum ^= data[-1:]
         return gen_chksum, data
 
     def upload_data(self, data, gen_chksum):
-        bytestowrite=len(data)
-        pos=0
-        while bytestowrite>0:
-            size=min(bytestowrite,64)
+        bytestowrite = len(data)
+        pos = 0
+        while bytestowrite > 0:
+            size = min(bytestowrite, 64)
             self.usbwrite(data[pos:pos + size])
-            bytestowrite-=size
-            pos+=size
-        #self.usbwrite(b"")
+            bytestowrite -= size
+            pos += size
+        # self.usbwrite(b"")
         try:
             checksum, status = self.rword(2)
             if gen_chksum != checksum and checksum != 0:
-                self.error("Checksum of upload doesn't match !")
-                return False
+                self.warning("Checksum of upload doesn't match !")
             if 0 <= status <= 0xFF:
                 return True
             else:
-                self.error(f"upload_data failed with status: {hex(status)}")
+                self.error(f"upload_data failed with error: "+self.eh.status(status))
                 return False
         except Exception as e:
             self.error(f"upload_data resp error : " + str(e))

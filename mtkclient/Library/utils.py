@@ -11,18 +11,124 @@ import shutil
 import stat
 import colorama
 import copy
+import time
+import io
+import datetime as dt
+
+sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
 
 try:
     from capstone import *
 except ImportError:
-    print("Capstone library is missing (optional).")
+    pass
 try:
     from keystone import *
 except ImportError:
-    print("Keystone library is missing (optional).")
-
+    pass
 
 from struct import unpack, pack
+
+
+def find_binary(data, strf, pos=0):
+    t = strf.split(b".")
+    pre = 0
+    offsets = []
+    while pre != -1:
+        pre = data[pos:].find(t[0], pre)
+        if pre == -1:
+            if len(offsets) > 0:
+                for offset in offsets:
+                    error = 0
+                    rt = offset + len(t[0])
+                    for i in range(1, len(t)):
+                        if t[i] == b'':
+                            rt += 1
+                            continue
+                        rt += 1
+                        prep = data[rt:].find(t[i])
+                        if prep != 0:
+                            error = 1
+                            break
+                        rt += len(t[i])
+                    if error == 0:
+                        return offset
+            else:
+                return None
+        else:
+            offsets.append(pre)
+            pre += 1
+    return None
+
+
+class progress:
+    def __init__(self, pagesize):
+        self.progtime = 0
+        self.prog = 0
+        self.progpos = 0
+        self.start = time.time()
+        self.pagesize = pagesize
+
+    def calcProcessTime(self, starttime, cur_iter, max_iter):
+        telapsed = time.time() - starttime
+        if telapsed > 0 and cur_iter > 0:
+            testimated = (telapsed / cur_iter) * (max_iter)
+            finishtime = starttime + testimated
+            finishtime = dt.datetime.fromtimestamp(finishtime).strftime("%H:%M:%S")  # in time
+            lefttime = testimated - telapsed  # in seconds
+            return (int(telapsed), int(lefttime), finishtime)
+        else:
+            return 0, 0, ""
+
+    def show_progress(self, prefix, pos, total, display=True):
+        prog = round(float(pos) / float(total) * float(100), 1)
+        if prog == 0:
+            self.prog = 0
+            self.start = time.time()
+            self.progtime = time.time()
+            self.progpos = pos
+            print_progress(prog, 100, prefix='Done',
+                           suffix=prefix + ' (Sector 0x%X of 0x%X) %0.2f MB/s' %
+                                  (pos // self.pagesize,
+                                   total // self.pagesize,
+                                   0), bar_length=50)
+
+        if prog > self.prog:
+            if display:
+                t0 = time.time()
+                tdiff = t0 - self.progtime
+                datasize = (pos - self.progpos) / 1024 / 1024
+                if datasize != 0 and tdiff != 0:
+                    try:
+                        throughput = datasize / tdiff
+                    except:
+                        throughput = 0
+                else:
+                    throughput = 0
+                telapsed, lefttime, finishtime = self.calcProcessTime(self.start, prog, 100)
+                hinfo = ""
+                if lefttime > 0:
+                    sec = lefttime
+                    if sec > 60:
+                        min = sec // 60
+                        sec = sec % 60
+                        if min > 60:
+                            h = min // 24
+                            min = min % 24
+                            hinfo = "%02dh:%02dm:%02ds left" % (h, min, sec)
+                        else:
+                            hinfo = "%02dm:%02ds left" % (min, sec)
+                    else:
+                        hinfo = "%02ds left" % sec
+
+                print_progress(prog, 100, prefix='Progress:',
+                               suffix=prefix + f' (Sector 0x%X of 0x%X, {hinfo}) %0.2f MB/s' %
+                                      (pos // self.pagesize,
+                                       total // self.pagesize,
+                                       throughput), bar_length=50)
+                self.prog = prog
+                self.progpos = pos
+                self.progtime = t0
 
 
 class structhelper:
@@ -32,28 +138,39 @@ class structhelper:
         self.pos = 0
         self.data = data
 
-    def qword(self):
-        dat = unpack("<Q", self.data[self.pos:self.pos + 8])[0]
+    def qword(self, big=False):
+        e = ">" if big else "<"
+        dat = unpack(e + "Q", self.data[self.pos:self.pos + 8])[0]
         self.pos += 8
         return dat
 
-    def dword(self):
-        dat = unpack("<I", self.data[self.pos:self.pos + 4])[0]
+    def dword(self, big=False):
+        e = ">" if big else "<"
+        dat = unpack(e + "I", self.data[self.pos:self.pos + 4])[0]
         self.pos += 4
         return dat
 
-    def dwords(self, dwords=1):
-        dat = unpack("<" + str(dwords) + "I", self.data[self.pos:self.pos + 4 * dwords])
+    def dwords(self, dwords=1, big=False):
+        e = ">" if big else "<"
+        dat = unpack(e + str(dwords) + "I", self.data[self.pos:self.pos + 4 * dwords])
         self.pos += 4 * dwords
         return dat
 
-    def short(self):
-        dat = unpack("<H", self.data[self.pos:self.pos + 2])[0]
+    def qwords(self, qwords=1, big=False):
+        e = ">" if big else "<"
+        dat = unpack(e + str(qwords) + "Q", self.data[self.pos:self.pos + 8 * qwords])
+        self.pos += 8 * qwords
+        return dat
+
+    def short(self, big=False):
+        e = ">" if big else "<"
+        dat = unpack(e + "H", self.data[self.pos:self.pos + 2])[0]
         self.pos += 2
         return dat
 
-    def shorts(self, shorts):
-        dat = unpack("<" + str(shorts) + "H", self.data[self.pos:self.pos + 2*shorts])
+    def shorts(self, shorts, big=False):
+        e = ">" if big else "<"
+        dat = unpack(e + str(shorts) + "H", self.data[self.pos:self.pos + 2 * shorts])
         self.pos += 2 * shorts
         return dat
 
@@ -74,6 +191,7 @@ class structhelper:
     def seek(self, pos):
         self.pos = pos
 
+
 def do_tcp_server(client, arguments, handler):
     def tcpprint(arg):
         if isinstance(arg, bytes) or isinstance(arg, bytearray):
@@ -84,7 +202,7 @@ def do_tcp_server(client, arguments, handler):
     client.printer = tcpprint
     import socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    port = int(arguments["--tcpport"])
+    port = int(arguments.tcpport)
     server_address = ('localhost', port)
     print('starting up on %s port %s' % server_address)
     sock.bind(server_address)
@@ -241,8 +359,10 @@ class ColorFormatter(logging.Formatter):
         # now we can let standart formatting take care of the rest
         return super(ColorFormatter, self).format(new_record, *args, **kwargs)
 
+
 def revdword(value):
     return unpack(">I", pack("<I", value))[0]
+
 
 def logsetup(self, logger, loglevel):
     self.info = logger.info
@@ -251,13 +371,14 @@ def logsetup(self, logger, loglevel):
     self.warning = logger.warning
     if loglevel == logging.DEBUG:
         logfilename = os.path.join("logs", "log.txt")
-        fh = logging.FileHandler(logfilename)
+        fh = logging.FileHandler(logfilename, encoding='utf-8')
         logger.addHandler(fh)
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
     self.loglevel = loglevel
     return logger
+
 
 class LogBase(type):
     debuglevel = logging.root.level

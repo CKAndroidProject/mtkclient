@@ -11,20 +11,18 @@ class Partition(metaclass=LogBase):
         self.mtk = mtk
         self.__logger = logsetup(self, self.__logger, loglevel)
         self.config = self.mtk.config
-        self.usbwrite = self.mtk.port.usbwrite
-        self.usbread = self.mtk.port.usbread
         self.readflash = readflash
         self.read_pmt = read_pmt
 
     def get_gpt(self, gpt_num_part_entries, gpt_part_entry_size, gpt_part_entry_start_lba, parttype="user"):
         data = self.readflash(addr=0, length=2 * self.config.pagesize, filename="", parttype=parttype, display=False)
-        if data[:9] == b"EMMC_BOOT" and self.read_pmt:
+        if data[:9] == b"EMMC_BOOT" and self.read_pmt is not None:
             partdata, partentries = self.read_pmt()
             if partdata == b"":
                 return None, None
             else:
                 return partdata, partentries
-        elif data[:8] == b"UFS_BOOT" and self.read_pmt:
+        elif data[:8] == b"UFS_BOOT" and self.read_pmt is not None:
             partdata, partentries = self.read_pmt()
             if partdata == b"":
                 return None, None

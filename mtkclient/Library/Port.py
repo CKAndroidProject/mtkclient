@@ -10,6 +10,7 @@ from struct import pack
 from mtkclient.Library.utils import LogBase, logsetup
 from mtkclient.Library.usblib import usb_class
 
+
 class Port(metaclass=LogBase):
     class deviceclass:
         vid = 0
@@ -35,7 +36,7 @@ class Port(metaclass=LogBase):
 
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
-            fh = logging.FileHandler(logfilename)
+            fh = logging.FileHandler(logfilename, encoding='utf-8')
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
@@ -44,14 +45,14 @@ class Port(metaclass=LogBase):
     def run_handshake(self):
         EP_OUT = self.cdc.EP_OUT.write
         EP_IN = self.cdc.EP_IN.read
-        maxinsize=self.cdc.EP_IN.wMaxPacketSize
+        maxinsize = self.cdc.EP_IN.wMaxPacketSize
 
         i = 0
         startcmd = b"\xa0\x0a\x50\x05"
         length = len(startcmd)
         try:
             while i < length:
-                if EP_OUT(int.to_bytes(startcmd[i],1,'little')):
+                if EP_OUT(int.to_bytes(startcmd[i], 1, 'little')):
                     v = EP_IN(maxinsize)
                     if len(v) == 1 and v[0] == ~(startcmd[i]) & 0xFF:
                         i += 1
@@ -76,6 +77,13 @@ class Port(metaclass=LogBase):
                 if self.cdc.connected and self.run_handshake():
                     return True
                 else:
+                    if loop == 5:
+                        sys.stdout.write('\n')
+                        self.info("Hint:\n\nPower off the phone before connecting.\n" + \
+                                  "For brom mode, press and hold vol up, vol dwn, or all hw buttons and " + \
+                                  "connect usb.\n" +
+                                  "For preloader mode, don't press any hw button and connect usb.\n")
+                        sys.stdout.write('\n')
                     if loop >= 10:
                         sys.stdout.write('.')
                     if loop >= 20:
@@ -97,6 +105,7 @@ class Port(metaclass=LogBase):
         resp = b""
         dlen = len(value)
         wr = self.usbwrite(value)
+        time.sleep(0.05)
         if wr:
             if nocmd:
                 cmdrsp = self.usbread(bytestoread)
@@ -121,7 +130,7 @@ class Port(metaclass=LogBase):
         for val in data:
             self.usbwrite(val)
             tmp = self.usbread(len(val))
-            #print(hexlify(tmp))
+            # print(hexlify(tmp))
             if val != tmp:
                 return False
         return True

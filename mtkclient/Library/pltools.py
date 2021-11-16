@@ -41,23 +41,25 @@ class PLTools(metaclass=LogBase):
         setup.cqdma_base = self.mtk.config.chipconfig.cqdma_base
         setup.ap_dma_mem = self.mtk.config.chipconfig.ap_dma_mem
         setup.meid_addr = self.mtk.config.chipconfig.meid_addr
+        setup.prov_addr = self.mtk.config.chipconfig.prov_addr
         self.hwcrypto=hwcrypto(setup,loglevel)
 
         self.pathconfig = pathconfig()
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
-            fh = logging.FileHandler(logfilename)
+            fh = logging.FileHandler(logfilename, encoding='utf-8')
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
             self.__logger.setLevel(logging.INFO)
 
-    def runpayload(self, filename, ptype, offset=0, ack=0xA1A2A3A4, addr=None, dontack=False):
+    def runpayload(self, filename, offset=0, ack=0xA1A2A3A4, addr=None, dontack=False):
+        ptype=self.config.ptype
         try:
             with open(filename, "rb") as rf:
                 rf.seek(offset)
                 payload = rf.read()
-                self.info(f"Loading payload from {filename}, {hex(len(payload))} bytes")
+                self.info(f"Loading payload from {os.path.basename(filename)}, {hex(len(payload))} bytes")
         except FileNotFoundError:
             self.info(f"Couldn't open {filename} for reading.")
             return False
@@ -128,23 +130,38 @@ class PLTools(metaclass=LogBase):
                 if result == pack(">I", ack):
                     self.info("Successfully sent payload: " + filename)
                     return True
+                if result==b"\xc1\xc2\xc3\xc4":
+                    if "preloader" in rf.name:
+                        ack=self.mtk.port.usbread(4)
+                        if ack==b"\xC0\xC0\xC0\xC0":
+                            with open("preloader.bin", 'wb') as wf:
+                                print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
+                                for pos in range(0, 0x40000, 64):
+                                    wf.write(self.mtk.port.usbread(64))
+                                self.info("Preloader dumped as: " + "preloader.bin")
+                                return True
+                    else:
+                        with open("out.bin", 'wb') as wf:
+                            print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
+                            for pos in range(0,0x20000,64):
+                                wf.write(self.mtk.port.usbread(64))
+                            self.info("Bootrom dumped as: " + "out.bin")
+                            return True
                 self.info("Error, payload answered instead: " + hexlify(result).decode('utf-8'))
                 return False
             else:
                 self.error("Error on sending payload: " + filename)
 
-    def runbrute(self, args, readsocid, ptype="kamakiri", enforcecrash=False):
-        if ptype is None:
-            ptype = "kamakiri2"
-        if ptype == "kamakiri":
+    def runbrute(self, args):
+        if self.config.ptype == "kamakiri":
             self.info("Kamakiri Run")
-            if self.kama.bruteforce(args,readsocid,enforcecrash):
+            if self.kama.bruteforce(args):
                 return True
             else:
                 self.error("Error on bruteforcing.")
-        elif ptype == "kamakiri2":
+        elif self.config.ptype == "kamakiri2":
             self.info("Kamakiri2 Run")
-            if self.kama.bruteforce2(args,readsocid,enforcecrash,0x9900):
+            if self.kama.bruteforce2(args,0x9900):
                 return True
             else:
                 self.error("Error on bruteforcing.")
@@ -166,7 +183,7 @@ class PLTools(metaclass=LogBase):
 
     def crasher(self, mtk, enforcecrash):
         plt = PLTools(mtk, self.__logger.level)
-        if enforcecrash or not (mtk.port.cdc.vid == 0xE8D and mtk.port.cdc.pid == 0x0003):
+        if enforcecrash or self.config.meid is None:
             self.info("We're not in bootrom, trying to crash da...")
             for crashmode in range(0, 3):
                 try:
@@ -196,7 +213,7 @@ class PLTools(metaclass=LogBase):
                 self.error("Error on sending payload: " + pfilename)
         elif btype == "kamakiri":
             self.info("Kamakiri / DA Run")
-            if self.runpayload(filename=pfilename, ptype="kamakiri", ack=0xC1C2C3C4, offset=0):
+            if self.runpayload(filename=pfilename, ack=0xC1C2C3C4, offset=0):
                 if self.kama.dump_brom(filename):
                     self.info("Bootrom dumped as: " + filename)
                     return True
@@ -204,7 +221,14 @@ class PLTools(metaclass=LogBase):
                 self.error("Error on sending payload: " + filename)
         elif btype == "kamakiri2" or btype is None:
             self.info("Kamakiri2")
-            if self.runpayload(filename=pfilename, ptype="kamakiri2", ack=0xC1C2C3C4, offset=0):
+            if self.mtk.config.chipconfig.send_ptr[0] is None:
+                self.info("Unknown chipset, please run \"brute\" command and send the brom as an issue on github")
+                return False
+                if self.kama.bruteforce2(self.args, 0x9900):
+                    return True
+                else:
+                    self.error("Error on bruteforcing.")
+            if self.runpayload(filename=pfilename, ack=0xC1C2C3C4, offset=0):
                 if self.kama.dump_brom(filename):
                     self.info("Bootrom dumped as: " + filename)
                     return True
@@ -234,16 +258,16 @@ class PLTools(metaclass=LogBase):
         """
         if btype == "kamakiri":
             self.info("Kamakiri / DA Run")
-            if self.runpayload(filename=pfilename, ptype="kamakiri", ack=0xC1C2C3C4, offset=0):
-                data,filename=self.kama.dump_preloader(0x80000)
+            if self.runpayload(filename=pfilename, ack=0xC1C2C3C4, offset=0):
+                data,filename=self.kama.dump_preloader()
                 return data, filename
             else:
                 self.error("Error on sending payload: " + pfilename)
                 return None, None
         elif btype == "kamakiri2" or btype is None:
             self.info("Kamakiri2")
-            if self.runpayload(filename=pfilename, ptype="kamakiri2", ack=0xC1C2C3C4, offset=0):
-                data,filename=self.kama.dump_preloader(0x80000)
+            if self.runpayload(filename=pfilename, ack=0xC1C2C3C4, offset=0):
+                data,filename=self.kama.dump_preloader()
                 return data, filename
             else:
                 self.error("Error on sending payload: " + pfilename)
