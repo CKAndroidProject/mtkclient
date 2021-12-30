@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2021 MIT License
+# (c) B.Kerler 2018-2021 GPLv3 License
 import logging
 import time
 import os
@@ -123,17 +123,13 @@ class DAXFlash(metaclass=LogBase):
         DT_MESSAGE = 2
 
     def __init__(self, mtk, daconfig, loglevel=logging.INFO):
-        self.__logger = logsetup(self, self.__logger, loglevel)
+        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
         self.info = self.__logger.info
         self.debug = self.__logger.debug
         self.error = self.__logger.error
         self.warning = self.__logger.warning
         self.mtk = mtk
         self.loglevel = loglevel
-        self.patch = False
-        self.generatekeys = self.mtk.config.generatekeys
-        if self.generatekeys:
-            self.patch = True
         self.daext = False
         self.sram = None
         self.dram = None
@@ -156,6 +152,10 @@ class DAXFlash(metaclass=LogBase):
         self.partition = Partition(self.mtk, self.readflash, self.read_pmt, loglevel)
         self.progress = progress(self.daconfig.pagesize)
         self.pathconfig = pathconfig()
+        self.patch = False
+        self.generatekeys = self.mtk.config.generatekeys
+        if self.generatekeys:
+            self.patch = True
         self.xft = xflashext(self.mtk, self, loglevel)
 
     def usleep(self, usec):
@@ -275,6 +275,35 @@ class DAXFlash(metaclass=LogBase):
         param = pack("<I", reset_key)
         return self.send_devctrl(self.Cmd.SET_RESET_KEY, param)
 
+    def set_meta(self, porttype="off"):
+        class mtk_boot_mode_flag:
+            boot_mode=b"\x00" # 0:normal, 1:meta
+            com_type=b"\x00"  # 0:unknown, 1:uart, 2:usb
+            com_id=b"\x00"    # 0:single interface device (meta,adb)
+                              # 1:composite device (meta, adb disable)
+                              # 2:no meta, adb enable
+                              # 3:no meta, adb disable
+
+            def __init__(self, mode="off"):
+                if mode=="off":
+                    self.boot_mode = b"\x00"
+                    self.com_type = b"\x00"
+                    self.com_id = b"\x00"
+                elif mode=="uart":
+                    self.boot_mode = b"\x01"
+                    self.com_type = b"\x01"
+                    self.com_id = b"\x00"
+                elif mode=="usb":
+                    self.boot_mode = b"\x01"
+                    self.com_type = b"\x02"
+                    self.com_id = b"\x00"
+
+            def get(self):
+                return self.boot_mode+self.com_type+self.com_id
+
+        metamode=mtk_boot_mode_flag(porttype).get()
+        return self.send_devctrl(self.Cmd.SET_META_BOOT_MODE, metamode)
+
     def set_checksum_level(self, checksum_level=0x0):
         param = pack("<I", checksum_level)
         # none[0x0]. USB[0x1]. storage[0x2], both[0x3]
@@ -314,19 +343,6 @@ class DAXFlash(metaclass=LogBase):
             else:
                 self.error(f"Error on sending data: {self.eh.status(status)}")
                 return False
-
-    def compute_hash_pos(self, da1, da2):
-        hashdigest = hashlib.sha1(da2).digest()
-        hashdigest256 = hashlib.sha256(da2).digest()
-        idx = da1.find(hashdigest)
-        hashmode = 1
-        if idx == -1:
-            idx = da1.find(hashdigest256)
-            hashmode = 2
-        if idx != -1:
-            return idx, hashmode
-        self.error("Hash computation failed.")
-        return None, None
 
     def boot_to(self, at_address, da, display=True, timeout=0.5):  # =0x40000000
         if self.xsend(self.Cmd.BOOT_TO):
@@ -542,6 +558,7 @@ class DAXFlash(metaclass=LogBase):
                 except:
                     pass
                 self.info(f"EMMC CID:        {hexlify(emmc.cid).decode('utf-8')}")
+                self.config.hwparam.writesetting("cid", hexlify(emmc.cid).decode('utf-8'))
                 self.info(f"EMMC Boot1 Size: {hex(emmc.boot1_size)}")
                 self.info(f"EMMC Boot2 Size: {hex(emmc.boot2_size)}")
                 self.info(f"EMMC GP1 Size:   {hex(emmc.gp1_size)}")
@@ -645,6 +662,7 @@ class DAXFlash(metaclass=LogBase):
                     except:
                         pass
                     self.info(f"UFS CID:      {hexlify(ufs.cid).decode('utf-8')}")
+                    self.config.hwparam.writesetting("cid", hexlify(ufs.cid).decode('utf-8'))
                     self.info(f"UFS LU0 Size: {hex(ufs.lu0_size)}")
                     self.info(f"UFS LU1 Size: {hex(ufs.lu1_size)}")
                     self.info(f"UFS LU2 Size: {hex(ufs.lu2_size)}")
@@ -944,7 +962,7 @@ class DAXFlash(metaclass=LogBase):
             self.error("No valid da loader found... aborting.")
             return False
         loader = self.daconfig.loader
-        self.info(f"Uploading stage 1 from {os.path.basename(loader)}")
+        self.info(f"Uploading xflash stage 1 from {os.path.basename(loader)}")
         with open(loader, 'rb') as bootldr:
             # stage 1
             da1offset = self.daconfig.da.region[1].m_buf
@@ -960,12 +978,12 @@ class DAXFlash(metaclass=LogBase):
             bootldr.seek(da2offset)
             da2 = bootldr.read(self.daconfig.da.region[2].m_len)
 
-            hashaddr, hashmode = self.compute_hash_pos(da1, da2[:-da2sig_len])
+            hashaddr, hashmode, hashlen = self.mtk.daloader.compute_hash_pos(da1, da2, da2sig_len)
             if hashaddr is not None:
                 da2 = self.xft.patch_da2(da2)
-                da1 = self.xft.fix_hash(da1, da2, hashaddr, hashmode)
+                da1 = self.mtk.daloader.fix_hash(da1, da2, hashaddr, hashmode, hashlen)
                 self.patch = True
-                self.daconfig.da2 = da2
+                self.daconfig.da2 = da2[:hashlen]
             else:
                 self.daconfig.da2 = da2[:-da2sig_len]
 
@@ -1087,7 +1105,7 @@ class DAXFlash(metaclass=LogBase):
                         # if self.get_da_stor_life_check() == 0x0:
                         cid = self.get_chip_id()
                         self.info("DA-CODE      : 0x%X", (cid.hw_code << 4) + (cid.hw_code >> 4))
-                        open(os.path.join("logs", "hwcode.txt"), "w").write(hex(self.config.hwcode))
+                        self.config.hwparam.writesetting("hwcode", hex(self.config.hwcode))
 
                         daextdata = self.xft.patch()
                         if daextdata is not None:

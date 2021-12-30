@@ -4,7 +4,7 @@ import os
 
 setup(
     name='mtkclient',
-    version='1.4',
+    version='1.55',
     packages=find_packages(),
     long_description=open("README.md").read(),
     scripts=['mtk','stage2'],
@@ -16,15 +16,17 @@ setup(
     },
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: GPLv3 License",
         "Operating System :: OS Independent",
     ],
-    license='MIT License',
+    license='GPLv3 License',
     install_requires=[
     'colorama',
     'usb',
     'pyusb',
-    'pycryptodome'
+    'pycryptodome',
+    'PySide2',
+    'mock'
     ],
     author='B. Kerler',
     author_email='info@revskills.de',

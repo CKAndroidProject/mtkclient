@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2021 MIT License
+# (c) B.Kerler 2018-2021 GPLv3 License
 import io
 import logging
 
@@ -98,7 +98,7 @@ class usb_class(metaclass=LogBase):
             fh = logging.FileHandler(logfilename, encoding='utf-8')
             self.__logger.addHandler(fh)
 
-        if sys.platform.startswith('freebsd') or sys.platform.startswith('linux'):
+        if sys.platform.startswith('freebsd') or sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
             self.backend = usb.backend.libusb1.get_backend(find_library=lambda x: "libusb-1.0.so")
         elif sys.platform.startswith('win32'):
             if calcsize("P") * 8 == 64:
@@ -363,6 +363,7 @@ class usb_class(metaclass=LogBase):
                 pass
             usb.util.dispose_resources(self.device)
             del self.device
+            time.sleep(2)
             self.connected = False
 
     def write(self, command, pktsize=None):
@@ -580,6 +581,7 @@ class scsi:
     def connect(self):
         self.usb = usb_class(loglevel=self.loglevel, portconfig=[self.vid, self.pid, self.interface], devclass=8)
         if self.usb.connect():
+            self.usb.connected = True
             return True
         return False
 

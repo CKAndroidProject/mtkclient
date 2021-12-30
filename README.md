@@ -1,4 +1,6 @@
-# mtkclient
+# MTKClient
+![Logo](mtkclient/gui/images/logo_256.png)
+
 Just some mtk tool for exploitation, reading/writing flash and doing crazy stuff. 
 For windows, you need to install the stock mtk port and the usbdk driver (see instructions below).
 For linux, a patched kernel is only needed when using old kamakiri (see Setup folder) (except for read/write flash).
@@ -11,23 +13,24 @@ release the buttons.
 - kamakiri [xyzz]
 - linecode exploit [chimera]
 - Chaosmaster
+- Geert-Jan Kreileman (GUI, design & fixes)
 - All contributors
 
 ## Installation
 
 ### Use Re LiveDVD (everything ready to go, based on Ubuntu):
-[Download Re Live DVD V2](https://drive.google.com/file/d/1VUK0toC6I0jhJ4ZTFPREhSXFTkSe9_gl/view?usp=sharing)
-User: livedvd, Password:livedvd
+[Download Re Live DVD V3](https://drive.google.com/file/d/1OoGWFSZTqWqwfU35W6UAUwc20CJrK95t/view?usp=sharing)
+User: user, Password:user (based on Ubuntu 22.04 LTS)
 
 
 ## Install
 
-### Linux - (Ubuntu recommended, no patched kernel needed except for kamakiri)
+### Linux  / Mac OS - (Ubuntu recommended, no patched kernel needed except for kamakiri)
 
 #### Install python >=3.8, git and other deps
 
 ```
-sudo apt install python3 git libusb1.0
+sudo apt install python3 git libusb-1.0-0 python3-pip
 ```
 
 #### Grab files 
@@ -114,6 +117,12 @@ sudo reboot
 
 ## Usage
 
+### Using MTKTools via the graphical user interface:
+For the 'basics' you can use the GUI interface. This supports dumping partitions or the full flash for now. Run the following command:
+```
+python mtk_gui
+```
+
 ### Root the phone (Tested with android 9 - 12)
 
 1. Dump boot and vbmeta
@@ -164,6 +173,15 @@ python mtk reset
 10. Disconnect usb cable and enjoy your rooted phone :)
 
 
+### Boot to meta mode via payload
+
+Example:
+
+```
+python mtk payload --metamode FASTBOOT
+```
+
+
 ### Unlock bootloader
 
 1. Erase metadata and userdata (and md_udc if existing):
@@ -173,11 +191,11 @@ python mtk e metadata,userdata,md_udc
 
 2. Unlock bootloader:
 ```
-python mtk xflash seccfg unlock
+python mtk da seccfg unlock
 ```
 for relocking use:
 ```
-python mtk xflash seccfg lock
+python mtk da seccfg lock
 ```
 
 3. Reboot the phone:
@@ -277,36 +295,36 @@ Erase boot sectors
 python mtk es boot [sector count]
 ```
 
-### XFlash commands (only available via XFlash da, not legacy da for now):
+### DA commands:
 
 Peek memory
 ```
-python mtk xflash peek [addr in hex] [length in hex] [optional: -filename filename.bin for reading to file]
+python mtk da peek [addr in hex] [length in hex] [optional: -filename filename.bin for reading to file]
 ```
 
 Poke memory
 ```
-python mtk xflash peek [addr in hex] [data as hexstring or -filename for reading from file]
+python mtk da peek [addr in hex] [data as hexstring or -filename for reading from file]
 ```
 
-Read rpmb
+Read rpmb (Only xflash for now)
 ```
-python mtk xflash rpmb r [will read to rpmb.bin]
+python mtk da rpmb r [will read to rpmb.bin]
 ```
 
-Write rpmb [Dangerous and may not work as it's not tested !]
+Write rpmb [Currently broken, xflash only]
 ```
-python mtk xflash rpmb w filename
+python mtk da rpmb w filename
 ```
 
 Generate and display rpmb1-3 key
 ```
-python mtk xflash generatekeys
+python mtk da generatekeys
 ```
 
 Unlock / Lock bootloader
 ```
-python mtk xflash seccfg [lock or unlock]
+python mtk da seccfg [lock or unlock]
 ```
 
 ---------------------------------------------------------------------------------------------------------------

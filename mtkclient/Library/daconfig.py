@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2021 MIT License
+# (c) B.Kerler 2018-2021 GPLv3 License
 import logging
 import os
 from struct import unpack
@@ -112,7 +112,7 @@ class DA:
 
 class DAconfig(metaclass=LogBase):
     def __init__(self, mtk, loader=None, preloader=None, loglevel=logging.INFO):
-        self.__logger = logsetup(self, self.__logger, loglevel)
+        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
         self.mtk = mtk
         self.pathconfig = pathconfig()
         self.config = self.mtk.config
@@ -187,9 +187,13 @@ class DAconfig(metaclass=LogBase):
                 with open(preloader, "rb") as rf:
                     data = rf.read()
             else:
-                assert "Preloader :" + preloader + " doesn't exist. Aborting."
+                self.error("Preloader : " + preloader + " doesn't exist. Aborting.")
                 exit(1)
-        self.emiver, self.emi = self.m_extract_emi(data)
+        try:
+            self.emiver, self.emi = self.m_extract_emi(data)
+        except:
+            self.emiver = 0
+            self.emi = None
 
     def parse_da_loader(self, loader):
         try:

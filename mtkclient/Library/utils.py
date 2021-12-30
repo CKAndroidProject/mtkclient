@@ -14,7 +14,7 @@ import copy
 import time
 import io
 import datetime as dt
-
+from PySide2.QtCore import Signal
 sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
 
@@ -52,7 +52,7 @@ def find_binary(data, strf, pos=0):
                             break
                         rt += len(t[i])
                     if error == 0:
-                        return offset
+                        return offset + pos
             else:
                 return None
         else:
@@ -81,7 +81,10 @@ class progress:
             return 0, 0, ""
 
     def show_progress(self, prefix, pos, total, display=True):
-        prog = round(float(pos) / float(total) * float(100), 1)
+        if pos != 0:
+            prog = round(float(pos) / float(total) * float(100), 1)
+        else:
+            prog = 0
         if prog == 0:
             self.prog = 0
             self.start = time.time()
@@ -364,11 +367,17 @@ def revdword(value):
     return unpack(">I", pack("<I", value))[0]
 
 
-def logsetup(self, logger, loglevel):
-    self.info = logger.info
-    self.debug = logger.debug
-    self.error = logger.error
-    self.warning = logger.warning
+def logsetup(self, logger, loglevel, signal=None):
+    if not signal:
+        self.info = logger.info
+        self.debug = logger.debug
+        self.error = logger.error
+        self.warning = logger.warning
+    else:
+        self.info = signal.emit
+        self.debug = signal.emit
+        self.error = signal.emit
+        self.warning = signal.emit
     if loglevel == logging.DEBUG:
         logfilename = os.path.join("logs", "log.txt")
         fh = logging.FileHandler(logfilename, encoding='utf-8')

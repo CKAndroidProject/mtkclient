@@ -1,8 +1,3 @@
-import os
-import logging
-from mtkclient.Library.utils import LogBase
-
-
 class damodes:
     DEFAULT = 0
     XFLASH = 1
@@ -1176,7 +1171,7 @@ hwconfig = {
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
         pl_payload_addr=0x40001000,  #
-        gcpu_base=0x10210000,
+        gcpu_base=0x1020D000,
         sej_base=0x1000A000,
         # no dxcc
         cqdma_base=0x10212C00,
@@ -1315,34 +1310,36 @@ hwconfig = {
         name="MT8195"
         # loader
     ),
-    0x8512: chipconfig(  # var1
-        # watchdog
-        # uart
-        # brom_payload_addr
+    0x8512: chipconfig(
+        var1=0xA,
+        watchdog=0x10007000,
+        uart=0x11002000,
+        brom_payload_addr=0x100A00,
         da_payload_addr=0x111000,
-        # gcpu_base
-        # sej_base
-        # cqdma_base
-        # ap_dma_mem
-        # blacklist
-        # blacklist_count
-        # send_ptr
-        # ctrl_buffer
-        # cmd_handler
-        # brom_register_access
-        # meid_addr
-        # socid_addr
+        pl_payload_addr=0x40200000,
+        gcpu_base=0x1020F000,
+        sej_base=0x1000A000,
+        cqdma_base=0x10214000,
+        ap_dma_mem=0x11000000 + 0x1A0,
+        blacklist=[(0x001041E4, 0x0), (0x0010AA84, 0x0)],
+        blacklist_count=0xA,
+        send_ptr=(0x104258, 0xcc44),
+        ctrl_buffer=0x00104570,
+        cmd_handler=0x0000D7AB,
+        brom_register_access=(0xd034, 0xd194),
+        meid_addr=0x104638,
+        socid_addr=0x104648,
         dacode=0x8512,
         damode=damodes.XFLASH,
         # description
-        name="MT8512"
-        # loader
+        name="MT8512",
+        loader="mt8512_payload.bin"
     ),
     0x8518: chipconfig(  # var1
         # watchdog
         # uart
         # brom_payload_addr
-        da_payload_addr=0x201000,
+        # da_payload_addr
         # gcpu_base
         # sej_base
         # cqdma_base
@@ -1357,7 +1354,9 @@ hwconfig = {
         # socid_addr
         dacode=0x8518,
         damode=damodes.XFLASH,
-        name="MT8518"),
+        name="MT8518"
+        # loader
+    ),
     0x8590: chipconfig(
         var1=0xA,  # confirmed, router
         watchdog=0x10007000,
@@ -1431,160 +1430,3 @@ hwconfig = {
 }
 
 
-class Mtk_Config(metaclass=LogBase):
-    def __init__(self, loglevel=logging.INFO):
-        self.pid = -1
-        self.vid = -1
-        self.var1 = 0xA
-        self.is_brom = False
-        self.skipwdt = False
-        self.interface = -1
-        self.readsocid = False
-        self.enforcecrash = False
-        self.debugmode = False
-        self.preloader = None
-        self.payloadfile = None
-        self.loader = None
-        self.ptype = "kamakiri2"
-        self.generatekeys = None
-        self.bmtflag = None
-        self.bmtblockcount = None
-        self.bmtpartsize = None
-        self.packetsizeread = 0x400
-        self.flashinfo = None
-        self.flashsize = 0
-        self.readsize = 0
-        self.sparesize = 16
-        self.plcap = None
-        self.blver = -2
-        self.da = None
-        self.gcpu = None
-        self.pagesize = 512
-        self.SECTOR_SIZE_IN_BYTES = 4096  # fixme
-        self.baudrate = 115200
-        self.flash = "emmc"
-        self.cpu = ""
-        self.hwcode = None
-        self.meid = None
-        self.target_config = None
-        self.chipconfig = chipconfig()
-        if loglevel == logging.DEBUG:
-            logfilename = os.path.join("logs", "log.txt")
-            fh = logging.FileHandler(logfilename)
-            self.__logger.addHandler(fh)
-            self.__logger.setLevel(logging.DEBUG)
-        else:
-            self.__logger.setLevel(logging.INFO)
-
-    def default_values(self, hwcode):
-        if self.chipconfig.var1 is None:
-            self.chipconfig.var1 = 0xA
-        if self.chipconfig.watchdog is None:
-            self.chipconfig.watchdog = 0x10007000
-        if self.chipconfig.uart is None:
-            self.chipconfig.uart = 0x11002000
-        if self.chipconfig.brom_payload_addr is None:
-            self.chipconfig.brom_payload_addr = 0x100A00
-        if self.chipconfig.da_payload_addr is None:
-            self.chipconfig.da_payload_addr = 0x200000
-        if self.chipconfig.cqdma_base is None:
-            self.chipconfig.cqdma_base = None
-        if self.chipconfig.gcpu_base is None:
-            self.chipconfig.gcpu_base = None
-        if self.chipconfig.sej_base is None:
-            self.chipconfig.sej_base = None
-        if self.chipconfig.dacode is None:
-            self.chipconfig.dacode = hwcode
-        if self.chipconfig.ap_dma_mem is None:
-            self.chipconfig.ap_dma_mem = 0x11000000 + 0x1A0
-        if self.chipconfig.damode is None:
-            self.chipconfig.damode = damodes.DEFAULT
-        if self.chipconfig.dxcc_base is None:
-            self.chipconfig.dxcc_base = None
-        if self.chipconfig.meid_addr is None:
-            self.chipconfig.meid_addr = None
-        if self.chipconfig.socid_addr is None:
-            self.chipconfig.socid_addr = None
-        if self.chipconfig.prov_addr is None:
-            self.chipconfig.prov_addr = None
-
-    def init_hwcode(self, hwcode):
-        self.hwcode = hwcode
-        if hwcode in hwconfig:
-            self.chipconfig = hwconfig[hwcode]
-        else:
-            self.chipconfig = chipconfig()
-        self.default_values(hwcode)
-
-    def get_watchdog_addr(self):
-        wdt = self.chipconfig.watchdog
-        if wdt != 0:
-            if wdt == 0x10007000:
-                return [wdt, 0x22000064]
-            elif wdt == 0x10212000:
-                return [wdt, 0x22000000]
-            elif wdt == 0x10211000:
-                return [wdt, 0x22000064]
-            elif wdt == 0x10007400:
-                return [wdt, 0x22000000]
-            elif wdt == 0xC0000000:
-                return [wdt, 0x0]
-            elif wdt == 0x2200:
-                if self.hwcode == 0x6276 or self.hwcode == 0x8163:
-                    return [wdt, 0x610C0000]
-                elif self.hwcode == 0x6251 or self.hwcode == 0x6516:
-                    return [wdt, 0x80030000]
-                elif self.hwcode == 0x6255:
-                    return [wdt, 0x701E0000]
-                else:
-                    return [wdt, 0x70025000]
-            else:
-                return [wdt, 0x22000064]
-
-    def bmtsettings(self, hwcode):
-        bmtflag = 1
-        bmtblockcount = 0
-        bmtpartsize = 0
-        if hwcode in [0x6592, 0x6582, 0x8127, 0x6571]:
-            if self.flash == "emmc":
-                bmtflag = 1
-                bmtblockcount = 0xA8
-                bmtpartsize = 0x1500000
-        elif hwcode in [0x6570, 0x8167, 0x6580, 0x6735, 0x6753, 0x6755, 0x6752, 0x6595, 0x6795, 0x6767, 0x6797, 0x8163]:
-            bmtflag = 1
-            bmtpartsize = 0
-        elif hwcode in [0x6571]:
-            if self.flash == "nand":
-                bmtflag = 0
-                bmtblockcount = 0x38
-                bmtpartsize = 0xE00000
-            elif self.flash == "emmc":
-                bmtflag = 1
-                bmtblockcount = 0xA8
-                bmtpartsize = 0x1500000
-        elif hwcode in [0x6575]:
-            if self.flash == "nand":
-                bmtflag = 0
-                bmtblockcount = 0x50
-            elif self.flash == "emmc":
-                bmtflag = 1
-                bmtblockcount = 0xA8
-                bmtpartsize = 0x1500000
-        elif hwcode in [0x6572]:
-            if self.flash == "nand":
-                bmtflag = 0
-                bmtpartsize = 0xA00000
-                bmtblockcount = 0x50
-            elif self.flash == "emmc":
-                bmtflag = 0
-                bmtpartsize = 0xA8
-                bmtblockcount = 0x50
-        elif hwcode in [0x6577, 0x6583, 0x6589]:
-            if self.flash == "nand":
-                bmtflag = 0
-                bmtpartsize = 0xA00000
-                bmtblockcount = 0xA8
-        self.bmtflag = bmtflag
-        self.bmtblockcount = bmtblockcount
-        self.bmtpartsize = bmtpartsize
-        return bmtflag, bmtblockcount, bmtpartsize

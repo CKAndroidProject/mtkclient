@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2021 MIT License
+# (c) B.Kerler 2018-2021 GPLv3 License
 import logging
 import time
 
@@ -27,11 +27,11 @@ class crypto_setup:
     prov_addr = None
 
 class hwcrypto(metaclass=LogBase):
-    def __init__(self, setup, loglevel=logging.INFO):
-        self.__logger = logsetup(self, self.__logger, loglevel)
+    def __init__(self, setup, loglevel=logging.INFO, gui:bool=False):
+        self.__logger = logsetup(self, self.__logger, loglevel, gui)
 
-        self.dxcc = dxcc(setup, loglevel)
-        self.gcpu = GCpu(setup, loglevel)
+        self.dxcc = dxcc(setup, loglevel, gui)
+        self.gcpu = GCpu(setup, loglevel, gui)
         self.sej = sej(setup, loglevel)
         self.cqdma = cqdma(setup, loglevel)
         self.hwcode = setup.hwcode
@@ -60,10 +60,22 @@ class hwcrypto(metaclass=LogBase):
         elif btype == "gcpu":
             addr = self.setup.da_payload_addr
             if mode == "ecb":
-                return self.gcpu.aes_read_ebc(data=data, encrypt=encrypt)
-            if mode == "cbc":
+                return self.gcpu.aes_read_ecb(data=data, encrypt=encrypt)
+            elif mode == "cbc":
                 if self.gcpu.aes_setup_cbc(addr=addr, data=data, iv=iv, encrypt=encrypt):
                     return self.gcpu.aes_read_cbc(addr=addr, encrypt=encrypt)
+            """
+            elif mode == "mtee":
+                path = "tee_tee.bin"
+                with open(path,"rb") as rf:
+                    rf.seek(0x240)
+                    data=rf.read(0x25D3C0)
+                    rf.seek(0x1C)
+                    seed=rf.read(0x20)
+                    self.gcpu.init()
+                    self.gcpu.acquire()
+                    self.gcpu.mtk_gcpu_decrypt_mtee_img(data,seed)
+            """
         elif btype == "dxcc":
             if mode == "fde":
                 return self.dxcc.generate_rpmb(1)

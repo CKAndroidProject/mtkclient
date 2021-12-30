@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2021 MIT License
+# (c) B.Kerler 2018-2021 GPLv3 License
 import os
-import shutil
 import logging
+import shutil
 from enum import Enum
 from struct import unpack, pack
 from binascii import hexlify
@@ -108,10 +108,10 @@ class Preloader(metaclass=LogBase):
 
     def __init__(self, mtk, loglevel=logging.INFO):
         self.mtk = mtk
-        self.__logger = logsetup(self, self.__logger, loglevel)
-        self.info = self.__logger.info
-        self.debug = self.__logger.debug
-        self.error = self.__logger.error
+        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
+        #self.info = self.__logger.info
+        #self.debug = self.__logger.debug
+        #self.error = self.__logger.error
         self.eh = ErrorHandler()
         self.gcpu = None
         self.config = mtk.config
@@ -126,7 +126,10 @@ class Preloader(metaclass=LogBase):
 
     def init(self, maxtries=None, display=True):
         if os.path.exists(".state"):
-            os.remove(".state")
+            try:
+                os.remove(".state")
+            except:
+                pass
         readsocid=self.config.readsocid
         skipwdt = self.config.skipwdt
 
@@ -175,8 +178,6 @@ class Preloader(metaclass=LogBase):
             self.setreg_disablewatchdogtimer(self.config.hwcode)  # D4
         if self.display:
             self.info("HW code:\t\t\t" + hex(self.config.hwcode))
-            with open(os.path.join("logs", "hwcode.txt"), "w") as wf:
-                wf.write(hex(self.config.hwcode))
         self.config.target_config = self.get_target_config(self.display)
         self.info("Get Target info")
         self.get_blver()
@@ -193,18 +194,15 @@ class Preloader(metaclass=LogBase):
             self.info("\tHW subcode:\t\t" + hex(self.config.hwsubcode))
             self.info("\tHW Ver:\t\t\t" + hex(self.config.hwver))
             self.info("\tSW Ver:\t\t\t" + hex(self.config.swver))
-        meid = self.get_meid()
-        if len(meid) >= 16:
-            with open(os.path.join("logs", "meid.txt"), "wb") as wf:
-                wf.write(hexlify(meid))
-        if meid != b"":
+        meid=self.get_meid()
+        if meid is not None:
+            self.config.set_meid(meid)
             if self.display:
                 self.info("ME_ID:\t\t\t" + hexlify(meid).decode('utf-8').upper())
             if readsocid or self.config.chipconfig.socid_addr:
                 socid = self.get_socid()
                 if len(socid) >= 16:
-                    with open(os.path.join("logs", "socid.txt"), "wb") as wf:
-                        wf.write(hexlify(socid))
+                    self.config.set_socid(socid)
                 if self.display:
                     if socid != b"":
                         self.info("SOC_ID:\t\t\t" + hexlify(socid).decode('utf-8').upper())
@@ -264,6 +262,15 @@ class Preloader(metaclass=LogBase):
         assert self.usbread(1) == cmd
         self.usbread(1)
         self.usbread(2)
+
+    def jump_bl(self):
+        if self.echo(self.Cmd.JUMP_BL.value):
+            status = self.rword()
+            if status <= 0xFF:
+                status2 = self.rword()
+                if status <= 0xFF:
+                    return True
+        return False
 
     def jump_to_partition(self, partitionname):
         if isinstance(partitionname, str):
@@ -457,8 +464,17 @@ class Preloader(metaclass=LogBase):
             self.error(f"Send auth error:{self.eh.status(status)}")
         return False
 
+    def get_brom_log(self):
+        if self.echo(self.Cmd.BROM_DEBUGLOG.value): # 0xDD
+            length = self.rdword()
+            logdata = self.rbyte(length)
+            return logdata
+        else:
+            self.error(f"Brom log cmd not supported.")
+        return b""
+
     def get_brom_log_new(self):
-        if self.echo(self.Cmd.GET_BROM_LOG_NEW):
+        if self.echo(self.Cmd.GET_BROM_LOG_NEW.value): # 0xDF
             length = self.rdword()
             logdata = self.rbyte(length)
             status = self.rword()
@@ -488,7 +504,10 @@ class Preloader(metaclass=LogBase):
             pass
 
         if status != 0:
-            raise RuntimeError(self.eh.status(status))
+            if isinstance(status, int):
+                raise RuntimeError(self.eh.status(status))
+            else:
+                raise RuntimeError("Kamakiri2 failed :(")
 
         if mode == 0:
             data = self.mtk.port.usbread(length)
@@ -528,6 +547,8 @@ class Preloader(metaclass=LogBase):
                         return self.mtk.config.meid
                     else:
                         self.error("Error on get_meid: " + self.eh.status(status))
+            else:
+                self.config.is_brom = False
         return b""
 
     def get_socid(self):
