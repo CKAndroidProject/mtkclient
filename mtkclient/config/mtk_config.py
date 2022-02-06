@@ -5,10 +5,13 @@ from binascii import hexlify
 from mtkclient.Library.utils import LogBase
 from mtkclient.Library.settings import hwparam
 from mtkclient.config.brom_config import chipconfig, damodes, hwconfig
+from PySide6.QtCore import QObject
 
 class Mtk_Config(metaclass=LogBase):
-    def __init__(self, loglevel=logging.INFO, gui=None):
+    def __init__(self, loglevel=logging.INFO, gui=None, guiprogress=None, update_status_text=None):
         self.gui = gui
+        self.guiprogress = guiprogress
+        self.update_status_text = update_status_text
         self.pid = -1
         self.vid = -1
         self.var1 = 0xA
@@ -22,6 +25,7 @@ class Mtk_Config(metaclass=LogBase):
         self.preloader_filename = None
         self.payloadfile = None
         self.loader = None
+        self.tr = QObject().tr
         if sys.platform.startswith('darwin'):
             self.ptype = "kamakiri"
         else:
@@ -32,7 +36,6 @@ class Mtk_Config(metaclass=LogBase):
         self.bmtpartsize = None
         self.packetsizeread = 0x400
         self.flashinfo = None
-        self.flashsize = 0
         self.readsize = 0
         self.sparesize = 16
         self.plcap = None
@@ -42,7 +45,6 @@ class Mtk_Config(metaclass=LogBase):
         self.pagesize = 512
         self.SECTOR_SIZE_IN_BYTES = 4096  # fixme
         self.baudrate = 115200
-        self.flash = "emmc"
         self.cpu = ""
         self.hwcode = None
         self.meid = None
@@ -59,6 +61,10 @@ class Mtk_Config(metaclass=LogBase):
             self.__logger.setLevel(logging.DEBUG)
         else:
             self.__logger.setLevel(logging.INFO)
+
+    def set_gui_status(self, status):
+        if self.update_status_text is not None:
+            self.update_status_text.emit(status)
 
     def set_meid(self,meid):
         self.hwparam = hwparam(meid, self.hwparam_path)
@@ -80,9 +86,8 @@ class Mtk_Config(metaclass=LogBase):
         return self.socid
 
     def set_hwparam_path(self, path):
-        if path is None:
-            path = "logs"
-        self.hwparam_path = path
+        if path is not None:
+            self.hwparam_path = path
 
     def default_values(self, hwcode):
         if self.chipconfig.var1 is None:
@@ -154,7 +159,7 @@ class Mtk_Config(metaclass=LogBase):
         bmtblockcount = 0
         bmtpartsize = 0
         if hwcode in [0x6592, 0x6582, 0x8127, 0x6571]:
-            if self.flash == "emmc":
+            if self.da.daconfig.flashtype == "emmc":
                 bmtflag = 1
                 bmtblockcount = 0xA8
                 bmtpartsize = 0x1500000
@@ -162,33 +167,33 @@ class Mtk_Config(metaclass=LogBase):
             bmtflag = 1
             bmtpartsize = 0
         elif hwcode in [0x6571]:
-            if self.flash == "nand":
+            if self.da.daconfig.flashtype == "nand":
                 bmtflag = 0
                 bmtblockcount = 0x38
                 bmtpartsize = 0xE00000
-            elif self.flash == "emmc":
+            elif self.da.daconfig.flashtype == "emmc":
                 bmtflag = 1
                 bmtblockcount = 0xA8
                 bmtpartsize = 0x1500000
         elif hwcode in [0x6575]:
-            if self.flash == "nand":
+            if self.da.daconfig.flashtype == "nand":
                 bmtflag = 0
                 bmtblockcount = 0x50
-            elif self.flash == "emmc":
+            elif self.da.daconfig.flashtype == "emmc":
                 bmtflag = 1
                 bmtblockcount = 0xA8
                 bmtpartsize = 0x1500000
         elif hwcode in [0x6572]:
-            if self.flash == "nand":
+            if self.da.daconfig.flashtype == "nand":
                 bmtflag = 0
                 bmtpartsize = 0xA00000
                 bmtblockcount = 0x50
-            elif self.flash == "emmc":
+            elif self.da.daconfig.flashtype == "emmc":
                 bmtflag = 0
                 bmtpartsize = 0xA8
                 bmtblockcount = 0x50
         elif hwcode in [0x6577, 0x6583, 0x6589]:
-            if self.flash == "nand":
+            if self.da.daconfig.flashtype == "nand":
                 bmtflag = 0
                 bmtpartsize = 0xA00000
                 bmtblockcount = 0xA8

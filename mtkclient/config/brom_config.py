@@ -733,7 +733,7 @@ hwconfig = {
         prov_addr=0x1054F4,
         damode=damodes.XFLASH,
         dacode=0x6765,
-        name="MT6765",
+        name="MT6765/MT8768t",
         description="Helio P35/G35",
         loader="mt6765_payload.bin"),
     0x707: chipconfig(
@@ -1171,7 +1171,7 @@ hwconfig = {
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
         pl_payload_addr=0x40001000,  #
-        gcpu_base=0x1020D000,
+        gcpu_base=0x101E32A0,
         sej_base=0x1000A000,
         # no dxcc
         cqdma_base=0x10212C00,
@@ -1242,7 +1242,7 @@ hwconfig = {
         brom_payload_addr=0x120A00,
         da_payload_addr=0xC0000,
         pl_payload_addr=0x40001000,  #
-        # gcpu_base
+        gcpu_base=0x10210000,
         sej_base=0x1000a000,
         # no dxcc
         cqdma_base=0x10212c00,
@@ -1266,7 +1266,7 @@ hwconfig = {
         brom_payload_addr=0x120A00,
         da_payload_addr=0xC0000,
         pl_payload_addr=0x40200000,
-        # gcpu_base
+        gcpu_base=0x10210000,
         sej_base=0x1000A000,
         # no dxcc
         cqdma_base=0x10212c00,
@@ -1287,8 +1287,8 @@ hwconfig = {
     ),
     0x930: chipconfig(
         # var1
-        # watchdog
-        # uart
+        watchdog=0x10007000,
+        uart=0x11001200,
         brom_payload_addr=0x100A00,
         da_payload_addr=0x201000,
         pl_payload_addr=0x40200000,

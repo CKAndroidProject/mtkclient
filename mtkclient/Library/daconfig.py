@@ -119,6 +119,9 @@ class DAconfig(metaclass=LogBase):
         self.usbwrite = self.mtk.port.usbwrite
         self.usbread = self.mtk.port.usbread
         self.flashsize = 0
+        self.rpmbsize = 0
+        self.boot1size = 0
+        self.boot2size = 0
         self.flashtype = "emmc"
         self.sparesize = 0
         self.readsize = 0
@@ -144,6 +147,7 @@ class DAconfig(metaclass=LogBase):
             if not os.path.exists(loader):
                 self.warning("Couldn't open " + loader)
             else:
+                self.info("Using custom loader: "+loader)
                 self.parse_da_loader(loader)
 
     def m_extract_emi(self, data):
@@ -230,7 +234,7 @@ class DAconfig(metaclass=LogBase):
             for loader in loaders:
                 if loader.hw_version <= self.config.hwver:
                     if loader.sw_version <= self.config.swver:
-                        if self.loader is None:
+                        if self.da is None:
                             self.da = loader
                             self.loader = loader.loader
 

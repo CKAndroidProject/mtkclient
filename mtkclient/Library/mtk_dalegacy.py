@@ -5,10 +5,9 @@ import sys
 import logging
 import os
 import time
-import hashlib
 from struct import pack, unpack
 from binascii import hexlify
-from mtkclient.Library.utils import LogBase, progress, read_object, logsetup, structhelper
+from mtkclient.Library.utils import LogBase, logsetup, structhelper
 from mtkclient.Library.error import ErrorHandler
 from mtkclient.Library.daconfig import DaStorage, EMMC_PartitionType
 from mtkclient.Library.partition import Partition
@@ -676,7 +675,6 @@ class DALegacy(metaclass=LogBase):
         self.sectorsize = self.daconfig.pagesize
         self.totalsectors = self.daconfig.flashsize
         self.partition = Partition(self.mtk, self.readflash, self.read_pmt, loglevel)
-        self.progress = progress(self.daconfig.pagesize)
         self.pathconfig = pathconfig()
         self.patch = False
         self.generatekeys = self.mtk.config.generatekeys
@@ -985,12 +983,15 @@ class DALegacy(metaclass=LogBase):
             bootldr.seek(da2offset)
             da2 = bootldr.read(self.daconfig.da.region[2].m_len)
 
-            hashaddr, hashmode, hashlen = self.mtk.daloader.compute_hash_pos(da1, da2, da2sig_len)
-            if hashaddr is not None:
-                da2 = self.lft.patch_da2(da2)
-                da1 = self.mtk.daloader.fix_hash(da1, da2, hashaddr, hashmode, hashlen)
-                self.patch = True
-                self.daconfig.da2 = da2[:hashlen]
+            if self.mtk.config.is_brom or not self.mtk.config.target_config["sbc"]:
+                hashaddr, hashmode, hashlen = self.mtk.daloader.compute_hash_pos(da1, da2, da2sig_len)
+                if hashaddr is not None:
+                    da2 = self.lft.patch_da2(da2)
+                    da1 = self.mtk.daloader.fix_hash(da1, da2, hashaddr, hashmode, hashlen)
+                    self.patch = True
+                    self.daconfig.da2 = da2[:hashlen]
+                else:
+                    self.daconfig.da2 = da2[:-da2sig_len]
             else:
                 self.daconfig.da2 = da2[:-da2sig_len]
 
@@ -1092,16 +1093,19 @@ class DALegacy(metaclass=LogBase):
                 buffer = self.usbread(1)
                 if buffer != self.Rsp.ACK:
                     self.error(
-                        f"Error on sending brom stage {stage - 1} addr {hex(pos)}: " + hexlify(buffer).decode('utf-8'))
+                        f"Error on sending brom stage {stage} addr {hex(pos)}: " + hexlify(buffer).decode('utf-8'))
+                    self.config.set_gui_status(self.config.tr("Error on sending brom stage"))
                     break
             time.sleep(0.5)
             self.usbwrite(self.Rsp.ACK)
             buffer = self.usbread(1)
             if buffer == self.Rsp.ACK:
-                self.info(f"Successfully uploaded stage {stage - 1}")
+                self.info(f"Successfully uploaded stage {stage}")
+                self.config.set_gui_status(self.config.tr(f"Successfully uploaded stage {stage}"))
                 return True
         else:
-            self.error(f"Error on sending brom stage {stage - 1} : " + hexlify(buffer).decode('utf-8'))
+            self.error(f"Error on sending brom stage {stage} : " + hexlify(buffer).decode('utf-8'))
+            self.config.set_gui_status(self.config.tr("Error on sending brom stage"))
         return False
 
     def check_usb_cmd(self):
@@ -1150,7 +1154,7 @@ class DALegacy(metaclass=LogBase):
         if filename is not None:
             fh = open(filename, "rb")
             fh.seek(offset)
-        self.progress.show_progress("Write", 0, 100, display)
+        self.mtk.daloader.progress.show_progress("Write", 0, length, display)
         self.usbwrite(self.Cmd.SDMMC_WRITE_DATA_CMD)
         self.usbwrite(pack(">B", storage))
         self.usbwrite(pack(">B", parttype))
@@ -1174,11 +1178,11 @@ class DALegacy(metaclass=LogBase):
             if self.usbread(1) != self.Rsp.CONT_CHAR:
                 self.error("Data ack failed for sdmmc_write_data")
                 return False
-            self.progress.show_progress("Write", offset, length, display)
+            self.mtk.daloader.progress.show_progress("Write", offset, length, display)
             offset += count
         if fh:
             fh.close()
-        self.progress.show_progress("Write", 100, 100, display)
+        self.mtk.daloader.progress.show_progress("Write", length, length, display)
         return True
 
     def get_storage(self):
@@ -1209,7 +1213,7 @@ class DALegacy(metaclass=LogBase):
                     ack = unpack(">B", self.usbread(1))[0]
                     if ack == self.Rsp.ACK[0]:
                         self.usbwrite(self.Rsp.ACK)
-                self.progress.show_progress("Write", 0, 100, display)
+                self.mtk.daloader.progress.show_progress("Write", 0, length, display)
                 checksum = 0
                 bytestowrite = length
                 while bytestowrite > 0:
@@ -1217,7 +1221,7 @@ class DALegacy(metaclass=LogBase):
                     for i in range(0, size, 0x400):
                         data = bytearray(rf.read(size))
                         pos = length - bytestowrite
-                        self.progress.show_progress("Write", pos, length, display)
+                        self.mtk.daloader.progress.show_progress("Write", pos, length, display)
                         if self.usbwrite(data):
                             bytestowrite -= size
                             if bytestowrite == 0:
@@ -1233,15 +1237,17 @@ class DALegacy(metaclass=LogBase):
                                     return True
                                 else:
                                     self.usbwrite(self.Rsp.ACK)
-                self.progress.show_progress("Write", 100, 100, display)
+                self.mtk.daloader.progress.show_progress("Write", length, length, display)
                 return True
         return True
 
     def writeflash(self, addr, length, filename, offset=0, parttype=None, wdata=None, display=True):
+        self.mtk.daloader.progress.clear()
         return self.sdmmc_write_data(addr=addr, length=length, filename=filename, offset=offset, parttype=parttype,
                                      wdata=wdata, display=display)
 
     def formatflash(self, addr, length, parttype=None, display=True):
+        self.mtk.daloader.progress.clear()
         length, parttype = self.get_parttype(length, parttype)
         self.check_usb_cmd()
         if self.daconfig.flashtype == "emmc":
@@ -1305,6 +1311,7 @@ class DALegacy(metaclass=LogBase):
         return length, parttype
 
     def readflash(self, addr, length, filename, parttype=None, display=True):
+        self.mtk.daloader.progress.clear()
         length, parttype = self.get_parttype(length, parttype)
         self.check_usb_cmd()
         packetsize = 0x0
@@ -1345,7 +1352,7 @@ class DALegacy(metaclass=LogBase):
             self.daconfig.readsize = self.daconfig.flashsize // self.daconfig.pagesize * (
                     self.daconfig.pagesize + self.daconfig.sparesize)
         if display:
-            self.progress.show_progress("Read", 0, 100, display)
+            self.mtk.daloader.progress.show_progress("Read", 0, length, display)
         if filename != "":
             with open(filename, "wb") as wf:
                 bytestoread = length
@@ -1358,12 +1365,17 @@ class DALegacy(metaclass=LogBase):
                     checksum = unpack(">H", self.usbread(1) + self.usbread(1))[0]
                     self.debug("Checksum: %04X" % checksum)
                     self.usbwrite(self.Rsp.ACK)
-                    self.progress.show_progress("Read", length - bytestoread, length, display)
-                self.progress.show_progress("Read", 100, 100, display)
+                    if length > bytestoread:
+                        rpos = length - bytestoread
+                    else:
+                        rpos = 0
+                    self.mtk.daloader.progress.show_progress("Read", rpos, length, display)
+                self.mtk.daloader.progress.show_progress("Read", length, length, display)
                 return True
         else:
             buffer = bytearray()
             bytestoread = length
+            self.mtk.daloader.progress.show_progress("Read", 0, length, display)
             while bytestoread > 0:
                 size = bytestoread
                 if bytestoread > packetsize:
@@ -1373,6 +1385,10 @@ class DALegacy(metaclass=LogBase):
                 checksum = unpack(">H", self.usbread(2))[0]
                 self.debug("Checksum: %04X" % checksum)
                 self.usbwrite(self.Rsp.ACK)
-                self.progress.show_progress("Read", length - bytestoread, length, display)
-            self.progress.show_progress("Read", 100, 100, display)
+                if length > bytestoread:
+                    rpos = length - bytestoread
+                else:
+                    rpos = 0
+                self.mtk.daloader.progress.show_progress("Read", rpos, length, display)
+            self.mtk.daloader.progress.show_progress("Read", length, length, display)
             return buffer

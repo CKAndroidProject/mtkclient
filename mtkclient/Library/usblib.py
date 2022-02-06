@@ -254,24 +254,24 @@ class usb_class(metaclass=LogBase):
         if self.connected:
             self.close()
             self.connected = False
-        for usbid in self.portconfig:
-            vid = usbid[0]
-            pid = usbid[1]
-            interface = usbid[2]
-            self.device = usb.core.find(idVendor=vid, idProduct=pid, backend=self.backend)
+        self.device = None
+        self.EP_OUT = None
+        self.EP_IN = None
+        devices = usb.core.find(find_all=True, bDeviceClass=0x2, backend=self.backend)
+        for dev in devices:
+            for usbid in self.portconfig:
+                if dev.idProduct == usbid[1] and dev.idVendor == usbid[0]:
+                    self.device = dev
+                    self.vid = dev.idVendor
+                    self.pid = dev.idProduct
+                    self.interface = usbid[2]
+                    break
             if self.device is not None:
-                self.vid = vid
-                self.pid = pid
-                self.interface = interface
                 break
 
         if self.device is None:
             self.debug("Couldn't detect the device. Is it connected ?")
             return False
-        # try:
-        #    self.device.set_configuration()
-        # except:
-        #    pass
 
         try:
             self.configuration = self.device.get_active_configuration()
@@ -285,70 +285,60 @@ class usb_class(metaclass=LogBase):
         if self.configuration is None:
             self.error("Couldn't get device configuration.")
             return False
-        if self.interface == -1:
-            for interfacenum in range(0, self.configuration.bNumInterfaces):
-                itf = usb.util.find_descriptor(self.configuration, bInterfaceNumber=interfacenum)
-                if self.devclass != -1:
-                    if itf.bInterfaceClass == self.devclass:  # MassStorage
-                        self.interface = interfacenum
-                        break
-                else:
-                    self.interface = interfacenum
-                    break
-
-        self.debug(self.configuration)
         if self.interface > self.configuration.bNumInterfaces:
             print("Invalid interface, max number is %d" % self.configuration.bNumInterfaces)
             return False
+        for itf in self.configuration:
+            if self.devclass == -1:
+                self.devclass = 2
+            if itf.bInterfaceClass == self.devclass:
+                if self.interface == -1 or self.interface == itf.bInterfaceNumber:
+                    self.interface = itf
+                    self.EP_OUT = EP_OUT
+                    self.EP_IN = EP_IN
+                    for ep in itf:
+                        edir = usb.util.endpoint_direction(ep.bEndpointAddress)
+                        if (edir == usb.util.ENDPOINT_OUT and EP_OUT == -1) or ep.bEndpointAddress == (EP_OUT & 0xF):
+                            self.EP_OUT = ep
+                        elif (edir == usb.util.ENDPOINT_IN and EP_IN == -1) or ep.bEndpointAddress == (EP_OUT & 0xF):
+                            self.EP_IN = ep
+                    break
 
-        if self.interface != -1:
-            itf = usb.util.find_descriptor(self.configuration, bInterfaceNumber=self.interface)
+        if self.EP_OUT is not None and self.EP_IN is not None:
+            self.debug(self.configuration)
+            if self.interface != 0:
+                try:
+                    usb.util.claim_interface(self.device, 0)
+                except:
+                    try:
+                        if self.device.is_kernel_driver_active(0):
+                            self.debug("Detaching kernel driver")
+                            self.device.detach_kernel_driver(0)
+                    except Exception as err:
+                        self.debug("No kernel driver supported: " + str(err))
+                    try:
+                        usb.util.claim_interface(self.device, 0)
+                    except:
+                        pass
             try:
-                if self.device.is_kernel_driver_active(0):
-                    self.debug("Detaching kernel driver")
-                    self.device.detach_kernel_driver(0)
-            except Exception as err:
-                self.debug("No kernel driver supported: " + str(err))
-            try:
-                usb.util.claim_interface(self.device, 0)
-            except:
-                pass
-
-            try:
-                if self.device.is_kernel_driver_active(self.interface):
-                    self.debug("Detaching kernel driver")
-                    self.device.detach_kernel_driver(self.interface)
-            except Exception as err:
-                self.debug("No kernel driver supported: " + str(err))
-            try:
-                if self.interface != 0:
                     usb.util.claim_interface(self.device, self.interface)
             except:
-                pass
-
-            if EP_OUT == -1:
-                self.EP_OUT = usb.util.find_descriptor(itf,
-                                                       # match the first OUT endpoint
-                                                       custom_match=lambda e: \
-                                                           usb.util.endpoint_direction(e.bEndpointAddress) ==
-                                                           usb.util.ENDPOINT_OUT)
-            else:
-                self.EP_OUT = EP_OUT
-            if EP_IN == -1:
-                self.EP_IN = usb.util.find_descriptor(itf,
-                                                      # match the first OUT endpoint
-                                                      custom_match=lambda e: \
-                                                          usb.util.endpoint_direction(e.bEndpointAddress) ==
-                                                          usb.util.ENDPOINT_IN)
-            else:
-                self.EP_IN = EP_IN
-
+                try:
+                    if self.device.is_kernel_driver_active(self.interface):
+                        self.debug("Detaching kernel driver")
+                        self.device.detach_kernel_driver(self.interface)
+                except Exception as err:
+                    self.debug("No kernel driver supported: " + str(err))
+                try:
+                    if self.interface != 0:
+                        usb.util.claim_interface(self.device, self.interface)
+                except:
+                    pass
             self.connected = True
             return True
-        else:
-            print("Couldn't find MassStorage interface. Aborting.")
-            self.connected = False
-            return False
+        print("Couldn't find CDC interface. Aborting.")
+        self.connected = False
+        return False
 
     def close(self, reset=False):
         if self.connected:

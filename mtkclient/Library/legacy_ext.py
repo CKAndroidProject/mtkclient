@@ -6,7 +6,9 @@ from mtkclient.Library.hwcrypto import crypto_setup, hwcrypto
 from mtkclient.Library.utils import LogBase, progress, logsetup, find_binary
 from mtkclient.Library.seccfg import seccfg
 from binascii import hexlify
+from mtkclient.Library.utils import mtktee
 import hashlib
+import json
 
 class LCmd:
     CUSTOM_READ = b"\x29"
@@ -41,7 +43,7 @@ class legacyext(metaclass=LogBase):
     def patch_da2(self, da2):
         da2patched = bytearray(da2)
         # Patch security
-        check_addr = find_binary(da2, b"\x08\xB5\x4F\xF4\x50\x42\xA0\xF1\x81\x53")
+        check_addr = find_binary(da2, b"\x08\xB5\x4F\xF4\x50\x42")
         if check_addr is not None:
             da2patched[check_addr:check_addr + 6] = b"\x08\xB5\x00\x20\x08\xBD"
         else:
@@ -80,10 +82,14 @@ class legacyext(metaclass=LogBase):
         if isinstance(dwords, int):
             dwords = [dwords]
         pos = 0
-        for val in dwords:
-            if not self.legacy.write_reg32(addr + pos, val):
-                return False
-            pos += 4
+        if len(dwords) < 0x20:
+            for val in dwords:
+                if not self.legacy.write_reg32(addr + pos, val):
+                    return False
+                pos += 4
+        else:
+            dat = b"".join([pack("<I", val) for val in dwords])
+            self.custom_write(addr, dat)
         return True
 
     def writemem(self, addr, data):
@@ -112,6 +118,7 @@ class legacyext(metaclass=LogBase):
         setup.blacklist = self.config.chipconfig.blacklist
         setup.gcpu_base = self.config.chipconfig.gcpu_base
         setup.dxcc_base = self.config.chipconfig.dxcc_base
+        setup.hwcode = self.config.hwcode
         setup.da_payload_addr = self.config.chipconfig.da_payload_addr
         setup.sej_base = self.config.chipconfig.sej_base
         setup.read32 = self.readmem
@@ -121,8 +128,7 @@ class legacyext(metaclass=LogBase):
 
     def seccfg(self, lockflag):
         if lockflag not in ["unlock", "lock"]:
-            print("Valid flags are: unlock, lock")
-            return False
+            return False, "Valid flags are: unlock, lock"
         hwc = self.cryptosetup()
         sc_org = seccfg(hwc)
         data, guid_gpt = self.legacy.partition.get_gpt(self.mtk.config.gpt_settings, "user")
@@ -137,14 +143,12 @@ class legacyext(metaclass=LogBase):
                     filename="", parttype="user", display=False)
                 break
         if seccfg_data is None:
-            self.error("Couldn't detect existing seccfg partition. Aborting unlock.")
-            return False
+            return False, "Couldn't detect existing seccfg partition. Aborting unlock."
         if seccfg_data[:4] != pack("<I", 0x4D4D4D4D):
-            self.error("Unknown seccfg partition header. Aborting unlock.")
-            return False
+            return False, "Unknown seccfg partition header. Aborting unlock."
 
         if not sc_org.parse(seccfg_data):
-            return False
+            return False, "Error on parsing seccfg."
         sc_new = seccfg(hwc)
         self.setotp(hwc)
         hwtype = "hw"
@@ -157,42 +161,56 @@ class legacyext(metaclass=LogBase):
             hwtype = "sw"
             sc_new.create(sc_org=sc_org, hwtype=hwtype)
             if sc_org.hash != sc_new.hash:
-                self.error("Device has is either already unlocked or algo is unknown. Aborting.")
-                return False
+                return False, "Device has is either already unlocked or algo is unknown. Aborting."
         writedata = sc_new.create(sc_org=None, hwtype=hwtype, lockflag=lockflag, V3=V3)
         if self.legacy.writeflash(addr=partition.sector * self.mtk.daloader.daconfig.pagesize,
                                   length=len(writedata),
                                   filename=None, wdata=writedata, parttype="user", display=True):
-            self.info("Successfully wrote seccfg.")
-            return True
-        self.error("Error on writing seccfg config to flash.")
-        return False
+            return True, "Successfully wrote seccfg."
+        return False, "Error on writing seccfg config to flash."
+
+    def decrypt_tee(self, filename="tee1.bin", aeskey1:bytes=None, aeskey2:bytes=None):
+        hwc = self.cryptosetup()
+        with open(filename, "rb") as rf:
+            data=rf.read()
+            idx=0
+            while idx!=-1:
+                idx=data.find(b"EET KTM ",idx+1)
+                if idx!=-1:
+                    mt = mtktee()
+                    mt.parse(data[idx:])
+                    rdata=hwc.mtee(data=mt.data, keyseed=mt.keyseed, ivseed=mt.ivseed,
+                                   aeskey1=aeskey1, aeskey2=aeskey2)
+                    open("tee_"+hex(idx)+".dec","wb").write(rdata)
 
     def generate_keys(self):
         hwc = self.cryptosetup()
         meid = b""
-        meidv = self.config.get_meid()
-        socidv = self.config.get_socid()
-        if meidv is not None:
-            meid = bytes.fromhex(meidv)
-            self.info("MEID        : " + meidv)
+        retval = {}
+        retval["hwcode"] = hex(self.config.hwcode)
+        meid = self.config.get_meid()
+        socid = self.config.get_socid()
+        if meid is not None:
+            self.info("MEID        : " + hexlify(meid).decode('utf-8'))
         else:
             try:
                 if self.config.chipconfig.meid_addr is not None:
                     meid = b"".join([pack("<I", val) for val in self.readmem(self.config.chipconfig.meid_addr, 4)])
                     self.config.set_meid(meid)
                     self.info("MEID        : " + hexlify(meid).decode('utf-8'))
+                    retval["meid"] = hexlify(meid).decode('utf-8')
             except Exception as err:
                 pass
-        if socidv is not None:
-            socid = bytes.fromhex(socidv)
-            self.info("SOCID        : " + socidv)
+        if socid is not None:
+            self.info("SOCID        : " + hexlify(socid).decode('utf-8'))
+            retval["socid"] = socid
         else:
             try:
                 if self.config.chipconfig.socid_addr is not None:
                     socid = b"".join([pack("<I",val) for val in self.readmem(self.config.chipconfig.socid_addr,8)])
                     self.config.set_socid(socid)
                     self.info("SOCID        : " + hexlify(socid).decode('utf-8'))
+                    retval["socid"] = hexlify(socid).decode('utf-8')
             except Exception as err:
                 pass
         if self.config.chipconfig.dxcc_base is not None:
@@ -211,26 +229,35 @@ class legacyext(metaclass=LogBase):
             if rpmbkey is not None:
                 self.info("RPMB        : " + hexlify(rpmbkey).decode('utf-8'))
                 self.config.hwparam.writesetting("rpmbkey",hexlify(rpmbkey).decode('utf-8'))
+                retval["rpmbkey"] = hexlify(rpmbkey).decode('utf-8')
             if rpmb2key is not None:
                 self.info("RPMB2       : " + hexlify(rpmb2key).decode('utf-8'))
                 self.config.hwparam.writesetting("rpmb2key",hexlify(rpmb2key).decode('utf-8'))
+                retval["rpmb2key"] = hexlify(rpmb2key).decode('utf-8')
             if fdekey is not None:
                 self.info("FDE         : " + hexlify(fdekey).decode('utf-8'))
                 self.config.hwparam.writesetting("fdekey",hexlify(fdekey).decode('utf-8'))
+                retval["fdekey"] = hexlify(fdekey).decode('utf-8')
             if ikey is not None:
                 self.info("iTrustee    : " + hexlify(ikey).decode('utf-8'))
                 self.config.hwparam.writesetting("kmkey", hexlify(ikey).decode('utf-8'))
+                retval["kmkey"] = hexlify(ikey).decode('utf-8')
             if self.config.chipconfig.prov_addr:
                 provkey = self.custom_read(self.config.chipconfig.prov_addr, 16)
                 self.info("PROV        : " + hexlify(provkey).decode('utf-8'))
                 self.config.hwparam.writesetting("provkey", hexlify(provkey).decode('utf-8'))
+                retval["provkey"] = hexlify(provkey).decode('utf-8')
             """
             hrid = self.xflash.get_hrid()
             if hrid is not None:
                 self.info("HRID        : " + hexlify(hrid).decode('utf-8'))
                 open(os.path.join("logs", "hrid.txt"), "wb").write(hexlify(hrid))
             """
+            return retval
         elif self.config.chipconfig.sej_base is not None:
+            if os.path.exists("tee.json"):
+                val=json.loads(open("tee.json","r").read())
+                self.decrypt_tee(val["filename"],bytes.fromhex(val["data"]),bytes.fromhex(val["data2"]))
             if meid == b"":
                 if self.config.chipconfig.meid_addr:
                     meid = self.custom_read(self.config.chipconfig.meid_addr,16)
@@ -238,8 +265,25 @@ class legacyext(metaclass=LogBase):
                 self.info("Generating sej rpmbkey...")
                 self.setotp(hwc)
                 rpmbkey = hwc.aes_hwcrypt(mode="rpmb", data=meid, btype="sej")
-                self.info("RPMB        : " + hexlify(rpmbkey).decode('utf-8'))
-                self.config.hwparam.writesetting("rpmbkey", hexlify(rpmbkey).decode('utf-8'))
+                if rpmbkey:
+                    self.info("RPMB        : " + hexlify(rpmbkey).decode('utf-8'))
+                    self.config.hwparam.writesetting("rpmbkey", hexlify(rpmbkey).decode('utf-8'))
+                    retval["rpmbkey"] = hexlify(rpmbkey).decode('utf-8')
+                self.info("Generating sej mtee...")
+                mtee = hwc.aes_hwcrypt(mode="mtee", btype="sej")
+                if mtee:
+                    self.info("MTEE        : " + hexlify(mtee).decode('utf-8'))
+                    self.config.hwparam.writesetting("mtee", hexlify(mtee).decode('utf-8'))
+                    retval["mtee"] = hexlify(mtee).decode('utf-8')
             else:
                 self.info("SEJ Mode: No meid found. Are you in brom mode ?")
-        return True
+        if self.config.chipconfig.gcpu_base is not None:
+            if self.config.hwcode == 0x335:
+                self.info("Generating gcpu mtee2 key...")
+                mtee2 = hwc.aes_hwcrypt(btype="gcpu", mode="mtee")
+                if mtee2 is not None:
+                    self.info("MTEE2       : " + hexlify(mtee2).decode('utf-8'))
+                    self.config.hwparam.writesetting("mtee2", hexlify(mtee2).decode('utf-8'))
+                    retval["mtee2"] = hexlify(mtee2).decode('utf-8')
+        self.config.hwparam.writesetting("hwcode", retval["hwcode"])
+        return retval

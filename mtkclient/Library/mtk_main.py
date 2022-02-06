@@ -163,8 +163,10 @@ class Main(metaclass=LogBase):
             if mtk.port.cdc.pid == 0x0003:
                 plt = PLTools(mtk, self.__logger.level)
                 self.info("Uploading stage 1")
+                mtk.config.set_gui_status(mtk.config.tr("Uploading stage 1"))
                 if plt.runpayload(filename=stage1file):
                     self.info("Successfully uploaded stage 1, sending stage 2")
+                    mtk.config.set_gui_status(mtk.config.tr("Successfully uploaded stage 1, sending stage 2"))
                     with open(stage2file, "rb") as rr:
                         stage2data = rr.read()
                         while len(stage2data) % 0x200:
@@ -196,7 +198,7 @@ class Main(metaclass=LogBase):
                     if flag != 0xD0D0D0D0:
                         self.error(f"Error on sending stage2, size {hex(len(stage2data))}.")
                     self.info(f"Done sending stage2, size {hex(len(stage2data))}.")
-
+                    mtk.config.set_gui_status(mtk.config.tr("Done sending stage 2"))
                     if verifystage2:
                         self.info("Verifying stage2 data")
                         rdata = b""
@@ -218,6 +220,7 @@ class Main(metaclass=LogBase):
                                 wf.write(rdata)
                         else:
                             self.info("Stage2 verification passed.")
+                            mtk.config.set_gui_status(mtk.config.tr("Stage2 verification passed."))
 
                     # ####### Kick Watchdog
                     # magic
@@ -233,6 +236,7 @@ class Main(metaclass=LogBase):
                     # address
                     mtk.port.usbwrite(pack(">I", stage2addr))
                     self.info("Done jumping stage2 at %08X" % stage2addr)
+                    mtk.config.set_gui_status(mtk.config.tr("Done jumping stage2 at %08X" % stage2addr))
                     ack = unpack(">I", mtk.port.usbread(4))[0]
                     if ack == 0xB1B2B3B4:
                         self.info("Successfully loaded stage2")
@@ -253,7 +257,8 @@ class Main(metaclass=LogBase):
                         if mtk.preloader.jump_da(daaddr):
                             self.info(f"Jumped to pl {hex(daaddr)}.")
                             time.sleep(2)
-                            config = Mtk_Config(loglevel=self.__logger.level, gui=mtk.config.gui)
+                            config = Mtk_Config(loglevel=self.__logger.level, gui=mtk.config.gui,
+                                                guiprogress=mtk.config.guiprogress)
                             mtk = Mtk(loglevel=self.__logger.level, config=config)
                             res = mtk.preloader.init()
                             if not res:
@@ -311,7 +316,7 @@ class Main(metaclass=LogBase):
             loglevel = logging.INFO
             self.__logger.setLevel(logging.INFO)
             pass
-        config = Mtk_Config(loglevel=loglevel, gui=None)
+        config = Mtk_Config(loglevel=loglevel, gui=None, guiprogress=None)
         ArgHandler(self.args, config)
         self.eh = ErrorHandler()
         mtk = Mtk(config=config, loglevel=loglevel)
@@ -347,7 +352,7 @@ class Main(metaclass=LogBase):
                 rmtk = mtk.crasher()
                 if rmtk is None:
                     sys.exit(0)
-                if rmtk.port.cdc.vid != 0xE8D and rmtk.port.cdc.pid != 0x0003:
+                if rmtk.port.cdc.vid != 0xE8D or rmtk.port.cdc.pid != 0x0003:
                     self.warning("We couldn't enter preloader.")
                 plt = PLTools(rmtk, self.__logger.level)
                 data, filename = plt.run_dump_preloader(self.args.ptype)
@@ -507,7 +512,8 @@ class Main(metaclass=LogBase):
                 preloader = None
             da_handler = DA_handler(mtk, loglevel)
             mtk = da_handler.configure_da(mtk, preloader)
-            da_handler.handle_da_cmds(mtk, cmd, self.args)
+            if mtk is not None:
+                da_handler.handle_da_cmds(mtk, cmd, self.args)
 
 
     def cmd_log(self, mtk, filename):
